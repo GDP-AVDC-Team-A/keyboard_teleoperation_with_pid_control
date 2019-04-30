@@ -1,0 +1,41 @@
+<!-- Launches: Keyboard_teleoperation_interface -->
+<launch>
+	<arg name="drone_id_namespace"  default="drone1" />
+	<arg name="drone_id_int" 	default="1" />
+	<arg name="my_stack_directory" 	default="$(env AEROSTACK_STACK)" />
+
+	<arg name="command_high_level_topic_name" 	default="command/high_level" />
+	<arg name="quadrotor_command_topic_name" 	default="actuator_command/quadrotor_command" />
+	<arg name="speed_ref_topic_name" 	        default="motion_reference/speed" />
+	<arg name="pose_ref_topic_name" 	default="motion_reference/pose" />
+	<arg name="self_pose_topic_name" 	default="self_localization/pose" />
+	<arg name="assumed_control_mode_topic_name" 	default="motion_reference/assumed_control_mode" />
+	<arg name="set_control_mode_service_name" 	default="set_control_mode" />
+
+
+	<!--Opened window topic-->
+    <arg name="window_opened" default="window_opened"/>
+
+    <!--Closed window topic-->
+        <arg name="closed_opened" default="closed_opened"/>
+
+	<group ns="$(arg drone_id_namespace)">
+		<node name="keyboard_teleoperation_interface" pkg="keyboard_teleoperation_interface" type="keyboard_teleoperation_interface" output="screen">
+			<param name="droneId" value="$(arg drone_id_int)" type="int"/>
+			<param name="stackPath" value="$(arg my_stack_directory)" type="string"/>
+			<param name="command_high_level_topic_name" value="$(arg command_high_level_topic_name)" type="string"/>
+			<param name="quadrotor_command_topic_name" value="$(arg quadrotor_command_topic_name)" type="string"/>
+			<param name="speed_ref_topic_name" value="$(arg speed_ref_topic_name)" type="string"/>
+			<param name="pose_ref_topic_name" value="$(arg pose_ref_topic_name)" type="string"/>
+			<param name="self_pose_topic_name" value="$(arg self_pose_topic_name)" type="string"/>
+			<param name="assumed_control_mode_topic_name" value="$(arg assumed_control_mode_topic_name)" type="string"/>
+			<param name="set_control_mode_service_name" value="$(arg set_control_mode_service_name)" type="string"/>
+		</node>
+
+		<!--Opened window topic-->
+			<param name="window_opened" value="$(arg window_opened)" />
+
+		<!--Closed window topic-->
+			<param name="closed_opened" value="$(arg closed_opened)" />
+	</group>
+</launch>
