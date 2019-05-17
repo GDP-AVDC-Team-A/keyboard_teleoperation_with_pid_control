@@ -42,15 +42,16 @@
 #include <stdio.h>
 #include <curses.h>
 #include <thread>
-#include "droneMsgsROS/setControlMode.h"
 #include "droneMsgsROS/droneCommand.h"
 #include <droneMsgsROS/InitiateBehaviors.h>
-#include "control/Controller_MidLevel_controlModes.h"
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include "mav_msgs/RollPitchYawrateThrust.h"
-#include "aerostack_msgs/ControlMode.h"
-#include <aerostack_msgs/BehaviorSrv.h>
+#include "aerostack_msgs/SetControlMode.h"
+#include "aerostack_msgs/QuadrotorPidControllerMode.h"
+#include <aerostack_msgs/RequestBehavior.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 #include "std_srvs/Empty.h"
 //Inputs
 #define ASCII_KEY_UP 65
@@ -69,7 +70,6 @@
 
 //Publishers
 ros::Publisher command_publ;
-ros::Publisher multirotor_command_publ;
 ros::Publisher speed_reference_publ;
 ros::Publisher pose_reference_publ;
 //Subscribers
@@ -83,8 +83,7 @@ ros::ServiceClient initiate_behaviors_srv;
 ros::ServiceClient activate_behavior_srv;
 
 //MSG
-aerostack_msgs::FlightMotionControlMode control_mode_msg;
-mav_msgs::RollPitchYawrateThrust multirotor_command_msg;
+aerostack_msgs::QuadrotorPidControllerMode control_mode_msg;
 droneMsgsROS::droneCommand command_order;
 geometry_msgs::PoseStamped self_localization_pose_msg; 
 geometry_msgs::TwistStamped speed_reference_msg;
@@ -92,11 +91,9 @@ geometry_msgs::TwistStamped current_speed_ref;
 
 //Services variables
 std_srvs::Empty req;
-std::string initiate_behaviors;
-std::string activate_behavior;
 droneMsgsROS::InitiateBehaviors msg;
-aerostack_msgs::BehaviorSrv::Request msg2;
-aerostack_msgs::BehaviorSrv::Response res;
+aerostack_msgs::RequestBehavior::Request msg2;
+aerostack_msgs::RequestBehavior::Response res;
 aerostack_msgs::BehaviorCommand behavior;
 
 //Functions
@@ -104,22 +101,20 @@ void printout_stream(std::stringstream* pinterface_printout_stream, int* lineCom
 void printoutControls();
 void publishCmd();
 void takeOff();
-void clearCmd();
 void hover();
 void land();
 void emergencyStop();
 void move();
-void publishMultirotorCommand();
 void selfLocalizationPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
-void controlModeCallback(const aerostack_msgs::FlightMotionControlMode::ConstPtr& msg);
+void controlModeCallback(const aerostack_msgs::QuadrotorPidControllerMode::ConstPtr& msg);
 void speedReferenceCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
 void publishSpeedReference();
-bool setControlMode(Controller_MidLevel_controlMode::controlMode new_control_mode);
+bool setControlMode(int new_control_mode);
+void clearSpeedReferences();
 
 //Topics
 std::string drone_id_namespace;
 std::string command_high_level_topic_name;
-std::string quadrotor_command_topic_name;
 std::string speed_ref_topic_name;
 std::string pose_ref_topic_name;
 std::string self_pose_topic_name;

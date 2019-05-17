@@ -51,11 +51,6 @@ int main(int argc, char** argv){
     {
         command_high_level_topic_name="command/high_level";
     }
-   ros::param::get("~quadrotor_command_topic_name", quadrotor_command_topic_name);
-    if ( quadrotor_command_topic_name.length() == 0)
-    {
-        quadrotor_command_topic_name="actuator_command/quadrotor_command";
-    }
    ros::param::get("~speed_ref_topic_name", speed_ref_topic_name);
     if ( speed_ref_topic_name.length() == 0)
     {
@@ -102,7 +97,6 @@ int main(int argc, char** argv){
 
   //Publishers
   command_publ = n.advertise<droneMsgsROS::droneCommand>("/" + drone_id_namespace + "/"+ command_high_level_topic_name, 1, true);
-  multirotor_command_publ = n.advertise<mav_msgs::RollPitchYawrateThrust>("/" + drone_id_namespace + "/"+quadrotor_command_topic_name, 1);
   speed_reference_publ = n.advertise<geometry_msgs::TwistStamped>("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, true);
   pose_reference_publ = n.advertise<geometry_msgs::PoseStamped>("/"+drone_id_namespace+"/"+pose_ref_topic_name, 1, true);
 
@@ -117,13 +111,11 @@ int main(int argc, char** argv){
   //Services
   startQuadrotorControllerClientSrv=n.serviceClient<std_srvs::Empty>("/"+drone_id_namespace+"/quadrotor_pid_controller_process/start");
   startQuadrotorControllerClientSrv.call(req);
-  setControlModeClientSrv = n.serviceClient<aerostack_msgs::ControlMode>("/" + drone_id_namespace + "/"+set_control_mode_service_name);
-  activate_behavior="activate_behavior";
+  setControlModeClientSrv = n.serviceClient<aerostack_msgs::SetControlMode>("/" + drone_id_namespace + "/"+set_control_mode_service_name);
   behavior.name = "SELF_LOCALIZE_BY_ODOMETRY";
   msg2.behavior = behavior;
-  n.param<std::string>("initiate_behaviors", initiate_behaviors, "initiate_behaviors");
-  initiate_behaviors_srv=n.serviceClient<droneMsgsROS::InitiateBehaviors>("/"+drone_id_namespace+"/"+initiate_behaviors);
-  activate_behavior_srv=n.serviceClient<aerostack_msgs::BehaviorSrv>("/"+drone_id_namespace+"/"+activate_behavior);
+  initiate_behaviors_srv=n.serviceClient<droneMsgsROS::InitiateBehaviors>("/"+drone_id_namespace+"/initiate_behaviors");
+  activate_behavior_srv=n.serviceClient<aerostack_msgs::RequestBehavior>("/"+drone_id_namespace+"/activate_behavior");
   initiate_behaviors_srv.call(msg);
   activate_behavior_srv.call(msg2,res);
 
@@ -132,400 +124,257 @@ int main(int argc, char** argv){
   while (ros::ok()){
     // Read messages
     ros::spinOnce();
-
-    move(11,0);
-    printw("Last key pressed: ");
-
-    //Read command
-    command = getch();
-    switch (command){
-      case 't':  // Take off
-        takeOff();
-        printw("Take off");
-        clrtoeol();
-        move(13, 0); 
-        printw("          Action: Executes the takeoff");
-        clrtoeol();refresh();
-        break;
-      case 'y':  // Land
-        hover();
-        land();
-        printw("Land");
-        clrtoeol(); 
-        move(13, 0); 
-        printw("          Action: Stops the vehicle, proceeds the landing");
-        clrtoeol(); refresh();              
-        break;
-      case ' ':  // Emergency stop
-        emergencyStop();
-        printw("Emergency stop");
-        clrtoeol(); 
-        move(13, 0); 
-        printw("          Action: Forces a complete stop of the vehicle and the quadrotor controller without a proper landing");
-        clrtoeol();refresh();   
-        break;
-      case 'h':  // Hover
-        hover();
-        printw("Hover");
-        clrtoeol();
-        move(13, 0); 
-        printw("          Action: Proceeds to remain the vehicle in the current place");
-        clrtoeol(); refresh();             
-        break;
-      case 'm':  // Move
-        move();
-        printw("Move");
-        clrtoeol();
-        move(13, 0); 
-        printw("          Action: Executes the movement");
-        clrtoeol(); refresh();      
-        break;
-      case 'q':  // Move upwards
-        move();
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
+    switch(control_mode_msg.command){
+          case aerostack_msgs::QuadrotorPidControllerMode::POSE:
+            move(15,0);
             printw("Control mode: pose. Command ignored");
-            clrtoeol();          
+            clrtoeol(); refresh();   
           break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
-            speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y;
-            speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z + CONTROLLER_STEP_COMMAND_ALTITUDE;
-            speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                                    
-            publishSpeedReference();
-            printw("Move upwards");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Adds %.2f dz speed to the vehicle",CONTROLLER_STEP_COMMAND_ALTITUDE);
-            clrtoeol(); refresh();
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }
-        break;
-      case 'a':  //Move downwards
-        move();
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
-              printw("Control mode: pose. Command ignored");
-              clrtoeol();          
-          break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
-            speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y;
-            speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z - CONTROLLER_STEP_COMMAND_ALTITUDE;
-            speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                                    
-            publishSpeedReference();
-            printw("Move downwards");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Subtracts %.2f dz speed to the vehicle",CONTROLLER_STEP_COMMAND_ALTITUDE);
-            clrtoeol();refresh();            
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }
-        break;
-      case 'z':  //(yaw) turn counter-clockwise
-        move();
-        
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
-              printw("Control mode: pose. Command ignored");
-              clrtoeol();          
-          break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear= current_speed_ref.twist.linear;
-            speed_reference_msg.twist.angular.x = current_speed_ref.twist.angular.x;          
-            speed_reference_msg.twist.angular.y = current_speed_ref.twist.angular.x;   
-            speed_reference_msg.twist.angular.z = current_speed_ref.twist.angular.z - CONTROLLER_STEP_COMMAND_YAW;                             
-            publishSpeedReference();
-            printw("Turn counter-clockwise");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Subtracts %.2f dyaw speed to the vehicle",CONTROLLER_STEP_COMMAND_YAW);
-            clrtoeol(); refresh();             
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }
+          case aerostack_msgs::QuadrotorPidControllerMode::SPEED:
+          {
+            move(15, 0);
+            clrtoeol(); refresh(); 
+            move(11,0);
+            printw("Last key pressed: ");
+            //Read command
+            command = getch();
+            switch (command){
+              case 't':  // Take off
+                takeOff();
+                printw("Take off");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Executes the takeoff");
+                clrtoeol();refresh();
+                break;
+              case 'y':  // Land
+                hover();
+                land();
+                printw("Land");
+                clrtoeol(); 
+                move(13, 0); 
+                printw("          Action: Stops the vehicle, proceeds the landing");
+                clrtoeol(); refresh();              
+                break;
+              case ' ':  // Emergency stop 
+                emergencyStop();
+                printw("Emergency stop");
+                clrtoeol(); 
+                move(13, 0); 
+                printw("          Action: Executes an emergency stop");
+                clrtoeol();refresh();   
+                break;
+              case 'h':  // Hover   
+                hover();
+                printw("Hover");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Proceeds to remain the vehicle in the current place");
+                clrtoeol(); refresh();             
+                break;
+              case 'm':  // Move
+                move();
+                printw("Move");
+                clrtoeol();
+                move(13, 0);
+                printw("          Action: Executes the movement");
+                clrtoeol(); refresh();      
+                break;
+              case 'q':  // Move upwards
+                move();
+                speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
+                speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y;
+                speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z + CONTROLLER_STEP_COMMAND_ALTITUDE;
+                speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                                    
+                publishSpeedReference();
+                printw("Move upwards");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Adds %.2f dz speed to the vehicle",CONTROLLER_STEP_COMMAND_ALTITUDE);
+                clrtoeol(); refresh();
+                break;
+              case 'a':  //Move downwards
+                move();
+                speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
+                speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y;
+                speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z - CONTROLLER_STEP_COMMAND_ALTITUDE;
+                speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                                    
+                publishSpeedReference();
+                printw("Move downwards");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Subtracts %.2f dz speed to the vehicle",CONTROLLER_STEP_COMMAND_ALTITUDE);
+                clrtoeol();refresh();   
+                break;         
+              case 'z':  //(yaw) turn counter-clockwise
+                move();       
+                speed_reference_msg.twist.linear= current_speed_ref.twist.linear;
+                speed_reference_msg.twist.angular.x = current_speed_ref.twist.angular.x;          
+                speed_reference_msg.twist.angular.y = current_speed_ref.twist.angular.x;   
+                speed_reference_msg.twist.angular.z = current_speed_ref.twist.angular.z - CONTROLLER_STEP_COMMAND_YAW;                             
+                publishSpeedReference();
+                printw("Turn counter-clockwise");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Subtracts %.2f dyaw speed to the vehicle",CONTROLLER_STEP_COMMAND_YAW);
+                clrtoeol(); refresh();   
+                break;          
+              case 'x':  // (yaw) turn clockwise
+                move();
+                speed_reference_msg.twist.linear = current_speed_ref.twist.linear;
+                speed_reference_msg.twist.angular.x = current_speed_ref.twist.angular.x;          
+                speed_reference_msg.twist.angular.y = current_speed_ref.twist.angular.x;   
+                speed_reference_msg.twist.angular.z = current_speed_ref.twist.angular.z + CONTROLLER_STEP_COMMAND_YAW;                             
+                publishSpeedReference();
+                printw("Turn clockwise");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Adds %.2f dyaw speed to the vehicle",CONTROLLER_STEP_COMMAND_YAW);
+                clrtoeol();   refresh();
+                break;            
+              case 'c':  // Set yaw reference to 0
+                speed_reference_msg.twist.linear = current_speed_ref.twist.linear;
+                speed_reference_msg.twist.angular.x = current_speed_ref.twist.angular.x;          
+                speed_reference_msg.twist.angular.y = current_speed_ref.twist.angular.x;   
+                speed_reference_msg.twist.angular.z = 0.0;                             
+                publishSpeedReference();
+                printw("Set yaw reference to 0");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Sets yaw reference to 0. Parallel to x-axis");
+                clrtoeol();  refresh(); 
+                break;         
+              case ASCII_KEY_RIGHT:
+                move();
+                speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
+                speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y - CONTROLLER_CTE_COMMAND_SPEED;
+                speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z;
+                speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                         
+                publishSpeedReference();
+                printw("Key right");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Subtracts %.2f dy speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
+                clrtoeol();refresh();   
+                break;               
+              case ASCII_KEY_LEFT:
+                move();
+                speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
+                speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y + CONTROLLER_CTE_COMMAND_SPEED;
+                speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z;
+                speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                         
+                publishSpeedReference();
+                printw("Key left");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Adds %.2f dy speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
+                clrtoeol();     refresh();
+                break;       
+              case ASCII_KEY_DOWN:
+                move();
+                speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x - CONTROLLER_CTE_COMMAND_SPEED;
+                speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y; 
+                speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z;
+                speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                         
+                publishSpeedReference();
+                printw("Key down");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Subtracts %.2f dx speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
+                clrtoeol();  refresh();  
+                break;        
+              case ASCII_KEY_UP:
+                move();
+                speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x + CONTROLLER_CTE_COMMAND_SPEED;
+                speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y; 
+                speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z;
+                speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                         
+                publishSpeedReference();
+                printw("Key up");
+                clrtoeol();
+                move(13, 0); 
+                printw("          Action: Adds %.2f dx speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
+                clrtoeol(); refresh(); 
+                break;         
+            case 'r':
+            {
+              printw("Reset orientation (Parallel to x-axis)");
+              clrtoeol();
+              move(13, 0); 
+              printw("          Action: Sets orientation to 0 in SPEED 3D mode.");
+              clrtoeol(); 
+              refresh();      
 
-        break;
-      case 'x':  // (yaw) turn clockwise
-        move();
-        
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
-              printw("Control mode: pose. Command ignored");
-              clrtoeol();          
-          break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear = current_speed_ref.twist.linear;
-            speed_reference_msg.twist.angular.x = current_speed_ref.twist.angular.x;          
-            speed_reference_msg.twist.angular.y = current_speed_ref.twist.angular.x;   
-            speed_reference_msg.twist.angular.z = current_speed_ref.twist.angular.z + CONTROLLER_STEP_COMMAND_YAW;                             
-            publishSpeedReference();
-            printw("Turn clockwise");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Adds %.2f dyaw speed to the vehicle",CONTROLLER_STEP_COMMAND_YAW);
-            clrtoeol();   refresh();            
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }      
-        break;
-      case 'c':  // Set yaw reference to 0
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();          
-          break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear = current_speed_ref.twist.linear;
-            speed_reference_msg.twist.angular.x = current_speed_ref.twist.angular.x;          
-            speed_reference_msg.twist.angular.y = current_speed_ref.twist.angular.x;   
-            speed_reference_msg.twist.angular.z = 0.0;                             
-            publishSpeedReference();
-            printw("Set yaw reference to 0");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Sets yaw reference to 0. Parallel to x-axis");
-            clrtoeol();  refresh();          
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }  
-        break;
-      case ASCII_KEY_RIGHT:
-        move();
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
-            printw("Control mode: pose. Command ignored");
-            clrtoeol();          
-          break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
-            speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y - CONTROLLER_CTE_COMMAND_SPEED;
-            speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z;
-            speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                         
-            publishSpeedReference();
-            printw("Key right");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Subtracts %.2f dy speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
-            clrtoeol();refresh();                  
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }
-        break;
-      case ASCII_KEY_LEFT:
-        move();
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
-            printw("Control mode: pose. Command ignored");
-            clrtoeol();                
-          break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
-            speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y + CONTROLLER_CTE_COMMAND_SPEED;
-            speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z;
-            speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                         
-            publishSpeedReference();
-            printw("Key left");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Adds %.2f dy speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
-            clrtoeol();     refresh();       
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }
-        break;
-      case ASCII_KEY_DOWN:
-        move();
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
-            printw("Control mode: pose. Command ignored");
-            clrtoeol();                
-          break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x - CONTROLLER_CTE_COMMAND_SPEED;
-            speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y; 
-            speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z;
-            speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                         
-            publishSpeedReference();
-            printw("Key down");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Subtracts %.2f dx speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
-            clrtoeol();  refresh();          
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }
+              //Sets speed references to 0
+              clearSpeedReferences();                                       
+              publishSpeedReference();      
 
-        break;
-      case ASCII_KEY_UP:
-        move();
-        switch(control_mode_msg.command){
-          case Controller_MidLevel_controlMode::TRAJECTORY_CONTROL:
-            printw("Control mode: trajectory. Command ignored");
-            clrtoeol();
-          break;
-          case Controller_MidLevel_controlMode::POSITION_CONTROL:
-            printw("Control mode: pose. Command ignored");
-            clrtoeol();                
-          break;
-          case Controller_MidLevel_controlMode::SPEED_CONTROL:
-            speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x + CONTROLLER_CTE_COMMAND_SPEED;
-            speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y; 
-            speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z;
-            speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                         
-            publishSpeedReference();
-            printw("Key up");
-            clrtoeol();
-            move(13, 0); 
-            printw("          Action: Adds %.2f dx speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
-            clrtoeol(); refresh();           
-          break;
-          case Controller_MidLevel_controlMode::UNKNOWN_CONTROL_MODE:
-          default:
-            hover();
-            printw("Control mode: unknown. Hover");
-            clrtoeol();
-          break;
-        }
-      break;
-    case 'r':
-    {
-      printw("Reset orientation (Parallel to x-axis)");
-      clrtoeol();
-      move(13, 0); 
-      printw("          Action: Sets orientation to 0 in pose mode. Proceeds to change to speed mode.");
-      clrtoeol(); 
-      refresh();      
+              //Change pose mdoe
+              if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::SPEED_3D)){
+               while (control_mode_msg.command != aerostack_msgs::QuadrotorPidControllerMode::SPEED_3D ){ //This may be redundant
+                  //Wait for delay
+               }
+                //Position references to 0
+                geometry_msgs::PoseStamped pose_reference_aux;
+                pose_reference_aux.pose.position.x = 0;
+                pose_reference_aux.pose.position.y = 0;
+                pose_reference_aux.pose.position.z = 0;  
+                pose_reference_aux.pose.orientation.w = 0.0;
+                pose_reference_aux.pose.orientation.x = 0.0;
+                pose_reference_aux.pose.orientation.y = 0.0;
+                pose_reference_aux.pose.orientation.z = 0.0;
+                pose_reference_publ.publish(pose_reference_aux);
+                move(14, 0);
+                printw("          Setting yaw to 0...");
+                clrtoeol(); 
+                refresh();  
+                double r, p, yaw = 10;
+                while(yaw > 0.001){ // Waits to yaw == 0
+                  tf2::Matrix3x3 m(tf2::Quaternion (self_localization_pose_msg.pose.orientation.x,self_localization_pose_msg.pose.orientation.y,self_localization_pose_msg.pose.orientation.z,self_localization_pose_msg.pose.orientation.w));
+                  m.getRPY(r, p, yaw);
+                  yaw = abs(yaw);
+                } 
 
-      //Sets speed references to 0
-      speed_reference_msg.twist.linear.x = 0.0;
-      speed_reference_msg.twist.linear.y = 0.0;
-      speed_reference_msg.twist.linear.z = 0.0;
-      speed_reference_msg.twist.angular.x = 0.0;
-      speed_reference_msg.twist.angular.y = 0.0;
-      speed_reference_msg.twist.angular.z = 0.0;                                
-      publishSpeedReference();      
-
-      //Change pose mdoe
-      if (setControlMode(Controller_MidLevel_controlMode::POSITION_CONTROL)){
-       while (control_mode_msg.command != Controller_MidLevel_controlMode::POSITION_CONTROL ){
-          //Wait for delay
-       }
-        //Send current location + orientation to zero
-        geometry_msgs::PoseStamped pose_reference_aux;
-        pose_reference_aux.pose.position = self_localization_pose_msg.pose.position;
-        pose_reference_aux.pose.orientation.w = 0.0;
-        pose_reference_aux.pose.orientation.x = 0.0;
-        pose_reference_aux.pose.orientation.y = 0.0;
-        pose_reference_aux.pose.orientation.z = 0.0;
-        pose_reference_publ.publish(pose_reference_aux);
-
-        //Sleep 10 seconds (waiting for yaw = 0)
-        sleep(10);
-
-        //Change to speed mode
-        if (setControlMode(Controller_MidLevel_controlMode::SPEED_CONTROL)){
-          while (control_mode_msg.command != Controller_MidLevel_controlMode::SPEED_CONTROL ){
-            //Wait for delay
+                //Change to speed mode
+                if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::SPEED)){
+                  while (control_mode_msg.command != aerostack_msgs::QuadrotorPidControllerMode::SPEED ){ //This may be redundant
+                    //Wait for delay
+                  }
+                move(14, 0);
+                clrtoeol(); 
+                refresh();                   
+                } else{
+                printw("ERROR");
+                clrtoeol(); 
+                refresh();     
+                }
+              }else{
+                printw("ERROR");
+                clrtoeol(); 
+                refresh();         
+              }
+            }
+            break;
+            }
           }
-
-        //Pose references to zero (reset pose references)
-        pose_reference_aux.pose.position.x = 0;
-        pose_reference_aux.pose.position.y = 0;
-        pose_reference_aux.pose.position.z = 0;       
-        pose_reference_aux.pose.orientation.w = 0.0;
-        pose_reference_aux.pose.orientation.x = 0.0;
-        pose_reference_aux.pose.orientation.y = 0.0;
-        pose_reference_aux.pose.orientation.z = 0.0;
-        pose_reference_publ.publish(pose_reference_aux); 
-        } else{
-        printw("ERROR");
-        clrtoeol(); 
-        refresh();     
-      }
-      }else{
-        printw("ERROR");
-        clrtoeol(); 
-        refresh();         
-      }
+          break;
+          case aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED:
+            move(15, 0);
+            printw("Control mode: ground speed. Command ignored");
+            clrtoeol(); refresh();  
+          break;
+          case aerostack_msgs::QuadrotorPidControllerMode::SPEED_3D:
+            move(15, 0);
+            printw("Control mode: speed 3D. Command ignored");
+            clrtoeol(); refresh();  
+          break;
+          case aerostack_msgs::QuadrotorPidControllerMode::UNKNOWN:
+          default:
+            move(15, 0);
+            printw("Control mode: unknown. Command ignored");
+            clrtoeol(); refresh();   
+          break;
     }
-    break;
-    }
-
     refresh();
     loop_rate.sleep();
   }
@@ -587,29 +436,31 @@ void publishCmd(){
 
 //Take off
 void takeOff(){
-  clearCmd();
   command_order.command = droneMsgsROS::droneCommand::TAKE_OFF;
   publishCmd();
 }
 
 //Hover
 void hover(){
-  clearCmd();
+  clearSpeedReferences();
+  publishSpeedReference();
   command_order.command = droneMsgsROS::droneCommand::HOVER;
   publishCmd();
 }
 
 //Land
 void land(){
-  clearCmd();
+  clearSpeedReferences();
+  publishSpeedReference();
   command_order.command = droneMsgsROS::droneCommand::LAND;
   publishCmd();
 }
 
 //Emergency Stop
 void emergencyStop(){
-  clearCmd();
-  command_order.command = droneMsgsROS::droneCommand::RESET;
+  clearSpeedReferences();
+  publishSpeedReference();
+  command_order.command = droneMsgsROS::droneCommand::EMERGENCY_STOP;
   publishCmd();
 }
 
@@ -619,21 +470,14 @@ void move(){
   publishCmd();
 }
 
-//Clear commands
-void clearCmd(){
-  geometry_msgs::Vector3 thrust;
-  thrust.x = 0.0;
-  thrust.y = 0.0;
-  thrust.z = 0.0;
-  multirotor_command_msg.roll = 0.0;
-  multirotor_command_msg.pitch = 0.0;
-  multirotor_command_msg.yaw_rate = 0.0;
-  multirotor_command_msg.thrust = thrust;
-}
-
-//Publish multirotor Command
-void publishMultirotorCommand(){
-  multirotor_command_publ.publish(multirotor_command_msg);
+//Clear speed references
+void clearSpeedReferences(){
+  speed_reference_msg.twist.linear.x = 0.0;
+  speed_reference_msg.twist.linear.y = 0.0;
+  speed_reference_msg.twist.linear.z = 0.0;
+  speed_reference_msg.twist.angular.x = 0.0;
+  speed_reference_msg.twist.angular.y = 0.0;
+  speed_reference_msg.twist.angular.z = 0.0;
 }
 
 //Publish Speed Reference
@@ -647,14 +491,14 @@ void speedReferenceCallback(const geometry_msgs::TwistStamped::ConstPtr& msg){
 }
 
 //Control mode callback
-void controlModeCallback(const aerostack_msgs::FlightMotionControlMode::ConstPtr& msg){
+void controlModeCallback(const aerostack_msgs::QuadrotorPidControllerMode::ConstPtr& msg){
   control_mode_msg = (*msg);
 }
 
 //Set control mode
-bool setControlMode(Controller_MidLevel_controlMode::controlMode new_control_mode){
+bool setControlMode(int new_control_mode){
   // Prepare service message
-  aerostack_msgs::ControlMode setControlModeSrv;
+  aerostack_msgs::SetControlMode setControlModeSrv;
   setControlModeSrv.request.controlMode.command = new_control_mode;
   // use service
   if (setControlModeClientSrv.call(setControlModeSrv)){

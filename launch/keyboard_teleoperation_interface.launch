@@ -5,7 +5,6 @@
 	<arg name="my_stack_directory" 	default="$(env AEROSTACK_STACK)" />
 
 	<arg name="command_high_level_topic_name" 	default="command/high_level" />
-	<arg name="quadrotor_command_topic_name" 	default="actuator_command/quadrotor_command" />
 	<arg name="speed_ref_topic_name" 	        default="motion_reference/speed" />
 	<arg name="pose_ref_topic_name" 	default="motion_reference/pose" />
 	<arg name="self_pose_topic_name" 	default="self_localization/pose" />
@@ -24,7 +23,6 @@
 			<param name="droneId" value="$(arg drone_id_int)" type="int"/>
 			<param name="stackPath" value="$(arg my_stack_directory)" type="string"/>
 			<param name="command_high_level_topic_name" value="$(arg command_high_level_topic_name)" type="string"/>
-			<param name="quadrotor_command_topic_name" value="$(arg quadrotor_command_topic_name)" type="string"/>
 			<param name="speed_ref_topic_name" value="$(arg speed_ref_topic_name)" type="string"/>
 			<param name="pose_ref_topic_name" value="$(arg pose_ref_topic_name)" type="string"/>
 			<param name="self_pose_topic_name" value="$(arg self_pose_topic_name)" type="string"/>
