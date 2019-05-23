@@ -41,7 +41,7 @@ void spinnerThread(){
 
 int main(int argc, char** argv){
   ros::init(argc, argv, "KEYBOARD TELEOPERATION INTERFACE");
-  ros::NodeHandle n;
+  ros::NodeHandle n("~");
   n.param<std::string>("drone_id_namespace", drone_id_namespace, "drone1");
   std::thread thr(&spinnerThread);
   printf("Starting Keyboard Teleoperation Interface...\n");

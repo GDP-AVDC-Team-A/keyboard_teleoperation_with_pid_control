@@ -1,7 +1,6 @@
 <!-- Launches: Keyboard_teleoperation_interface -->
 <launch>
 	<arg name="drone_id_namespace"  default="drone1" />
-	<arg name="drone_id_int" 	default="1" />
 	<arg name="my_stack_directory" 	default="$(env AEROSTACK_STACK)" />
 
 	<arg name="command_high_level_topic_name" 	default="command/high_level" />
@@ -20,7 +19,7 @@
 
 	<group ns="$(arg drone_id_namespace)">
 		<node name="keyboard_teleoperation_interface" pkg="keyboard_teleoperation_interface" type="keyboard_teleoperation_interface" output="screen">
-			<param name="droneId" value="$(arg drone_id_int)" type="int"/>
+			<param name="drone_id_namespace" value="$(arg drone_id_namespace)" type="string"/>
 			<param name="stackPath" value="$(arg my_stack_directory)" type="string"/>
 			<param name="command_high_level_topic_name" value="$(arg command_high_level_topic_name)" type="string"/>
 			<param name="speed_ref_topic_name" value="$(arg speed_ref_topic_name)" type="string"/>
