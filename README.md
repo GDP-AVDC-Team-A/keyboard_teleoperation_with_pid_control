@@ -1,17 +1,11 @@
 # Keyboard Teleoperation Interface
 
-<p align="center">
-<img src="https://i.ibb.co/m5ngjvQ/keyboardground.png" title="Ground speed teleoperation control mode">
-<div align="center">Ground speed teleoperation control mode</div>
-</p>
-<p align="center">
-<img src="https://i.ibb.co/HGc47fV/keyboardpose.png" title="Pose teleoperation control mode">
-<div align="center">Pose teleoperation control mode</div>
-</p>
-<p align="center">
-<img src="https://i.ibb.co/hX7dkH2/keyboardattitude.png" title="Attitude teleoperation control mode">
-<div align="center">Attitude teleoperation control mode</div>
-</p>
+![Ground speed teleoperation control mode](https://i.ibb.co/m5ngjvQ/keyboardground.png)
+
+![Pose teleoperation control mode](https://i.ibb.co/HGc47fV/keyboardpose.png)
+
+![Attitude teleoperation control mode](https://i.ibb.co/hX7dkH2/keyboardattitude.png)
+
 # Subscribed topics
 
 - **self_localization/pose** ([geometry_msgs/PoseStamped](http://docs.ros.org/api/geometry_msgs/html/msg/PoseStamped.html))      
