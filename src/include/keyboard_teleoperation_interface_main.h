@@ -40,8 +40,10 @@
 #include "ros/ros.h"
 #include <sstream>
 #include <stdio.h>
+
 #include <curses.h>
 #include <thread>
+#include <locale.h>
 #include "droneMsgsROS/droneCommand.h"
 #include <droneMsgsROS/InitiateBehaviors.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -52,6 +54,7 @@
 #include <aerostack_msgs/RequestBehavior.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "std_srvs/Empty.h"
 //Inputs
 #define ASCII_KEY_UP 65
@@ -61,12 +64,19 @@
 
 // Define controller commands define constants
 #define CONTROLLER_CTE_COMMAND_SPEED (1.00)
+#define CONTROLLER_CTE_COMMAND_POSE (1.00)
 #define CONTROLLER_STEP_COMMAND_ALTITUDE (0.25)
-#define CONTROLLER_STEP_COMMAND_YAW (10.0 * (M_PI / 180.0))
+#define CONTROLLER_STEP_COMMAND_YAW (0.1)
 //Loop rate
 #define FREQ_INTERFACE 200.0
 
 #define DISPLAY_COLUMN_SIZE 22
+
+
+
+const int GROUND_SPEED = 1;
+const int POSE = 2;
+const int ATTITUDE = 3;
 
 //Publishers
 ros::Publisher command_publ;
@@ -86,6 +96,7 @@ ros::ServiceClient activate_behavior_srv;
 aerostack_msgs::QuadrotorPidControllerMode control_mode_msg;
 droneMsgsROS::droneCommand command_order;
 geometry_msgs::PoseStamped self_localization_pose_msg; 
+geometry_msgs::PoseStamped motion_reference_pose_msg; 
 geometry_msgs::TwistStamped speed_reference_msg;
 geometry_msgs::TwistStamped current_speed_ref;
 
@@ -98,7 +109,9 @@ aerostack_msgs::BehaviorCommand behavior;
 
 //Functions
 void printout_stream(std::stringstream* pinterface_printout_stream, int* lineCommands, int* columCommands);
-void printoutControls();
+void printoutPoseControls();
+void printoutGroundSpeedControls();
+void printoutAttitudeControls();
 void publishCmd();
 void takeOff();
 void hover();
@@ -111,7 +124,8 @@ void speedReferenceCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
 void publishSpeedReference();
 bool setControlMode(int new_control_mode);
 void clearSpeedReferences();
-
+bool advanced;
+int current_mode;
 //Topics
 std::string drone_id_namespace;
 std::string command_high_level_topic_name;

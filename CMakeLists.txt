@@ -117,7 +117,7 @@ target_link_libraries(keyboard_teleoperation_interface_lib ${QWT_LIB} ${catkin_L
 add_executable(keyboard_teleoperation_interface ${KEYBOARD_TELEOPERATION_INTERFACE_SOURCE_FILES})
 add_dependencies(keyboard_teleoperation_interface ${catkin_EXPORTED_TARGETS})
 target_link_libraries(keyboard_teleoperation_interface keyboard_teleoperation_interface_lib)
-target_link_libraries(keyboard_teleoperation_interface ncurses)
+target_link_libraries(keyboard_teleoperation_interface ncursesw)
 target_link_libraries(keyboard_teleoperation_interface ${OpenCV_LIBS})
 target_link_libraries(keyboard_teleoperation_interface ${catkin_LIBRARIES})
 
