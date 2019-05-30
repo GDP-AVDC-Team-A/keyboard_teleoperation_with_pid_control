@@ -9,7 +9,8 @@
 	<arg name="self_pose_topic_name" 	default="self_localization/pose" />
 	<arg name="assumed_control_mode_topic_name" 	default="motion_reference/assumed_control_mode" />
 	<arg name="set_control_mode_service_name" 	default="set_control_mode" />
-
+    <arg name="command_pitch_roll_topic_name"     default="command/pitch_roll" />
+	<arg name="ground_speed_topic_name" 	default="ground_speed" />
 
 	<!--Opened window topic-->
     <arg name="window_opened" default="window_opened"/>
@@ -27,6 +28,9 @@
 			<param name="self_pose_topic_name" value="$(arg self_pose_topic_name)" type="string"/>
 			<param name="assumed_control_mode_topic_name" value="$(arg assumed_control_mode_topic_name)" type="string"/>
 			<param name="set_control_mode_service_name" value="$(arg set_control_mode_service_name)" type="string"/>
+
+			<param name="command_pitch_roll_topic_name" value="$(arg command_pitch_roll_topic_name)" type="string"/>
+			<param name="ground_speed_topic_name" value="$(arg ground_speed_topic_name)" type="string"/>	
 		</node>
 
 		<!--Opened window topic-->

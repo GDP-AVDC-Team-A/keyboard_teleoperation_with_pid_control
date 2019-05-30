@@ -77,6 +77,18 @@ int main(int argc, char** argv){
         set_control_mode_service_name="set_control_mode";
     }
 
+   ros::param::get("~command_pitch_roll_topic_name", command_pitch_roll_topic_name);
+    if ( command_pitch_roll_topic_name.length() == 0)
+    {
+        command_pitch_roll_topic_name="command/pitch_roll";
+    }
+   ros::param::get("~ground_speed_topic_name", ground_speed_topic_name);
+    if ( ground_speed_topic_name.length() == 0)
+    {
+        ground_speed_topic_name="ground_speed";
+    }
+
+
   // ncurses initialization
   setlocale(LC_ALL, "");
   initscr();
@@ -107,6 +119,18 @@ int main(int argc, char** argv){
   control_mode = n.subscribe("/" + drone_id_namespace + "/" + assumed_control_mode_topic_name, 1, controlModeCallback);
   speed_reference_sub = n.subscribe("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, speedReferenceCallback);
 
+  //Deprecated subscribers and publishers
+  command_pitch_roll_publ = n.advertise<droneMsgsROS::dronePitchRollCmd>("/" + drone_id_namespace + "/"+ command_pitch_roll_topic_name, 1, true);
+  command_pitch_roll_stop_sub = n.subscribe("/"+drone_id_namespace+"/"+command_pitch_roll_topic_name, 1, commandPitchRollCallbackStop);
+  command_pitch_roll_sub = n.subscribe("/"+drone_id_namespace+"/"+command_pitch_roll_topic_name+"/temp", 1, commandPitchRollCallback);
+  ground_speed_sub = n.subscribe("/"+drone_id_namespace+"/"+ground_speed_topic_name, 1, groundSpeedCallback);
+
+  //Attitude control
+  up = false;
+  right = false;
+  left = false;
+  down = false;
+
   //Wait 3sec for initialization
   sleep(3);
 
@@ -124,7 +148,7 @@ int main(int argc, char** argv){
   initiate_behaviors_srv.call(msg);
   activate_behavior_srv.call(msg2,res);
   move(0,0);clrtoeol();
-  printw("                       -KEYBOARD TELEOPERATION INTERFACE-");
+  printw("                      - KEYBOARD TELEOPERATION INTERFACE -");
   move(3,0);clrtoeol();
   printw("--------------------------------------------------------------------------------");
   //Print controls
@@ -190,43 +214,38 @@ int main(int argc, char** argv){
       case 'h':  // Hover   
         hover();
         printw("h      ");clrtoeol();
-        if (current_mode == POSE){
-          motion_reference_pose_msg.pose= self_localization_pose_msg.pose;
-          pose_reference_publ.publish(motion_reference_pose_msg);
-        }
+        move(17, 0); printw("                        Last command:     Keep hovering             ");clrtoeol();refresh();
 
-        if (current_mode == GROUND_SPEED){
+        if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
             clearSpeedReferences();
             publishSpeedReference();
+            command_pitch_roll_msg.rollCmd = 0;
+            command_pitch_roll_msg.pitchCmd = 0;
+            command_pitch_roll_publ.publish(command_pitch_roll_msg);
+            while(abs(ground_speed_msg.vector.x) >= 0.01 || abs(ground_speed_msg.vector.y) >= 0.01){
+              //Waiting
+            }
+            motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
+            if (current_mode == POSE){
+              setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE);
+            }
+             pose_reference_publ.publish(motion_reference_pose_msg);           
         }
-        move(17, 0); printw("                        Last command:     Hovering             ");clrtoeol();             
         break;
       case 'q':  // Move upwards
         move();
-        if (current_mode == GROUND_SPEED || current_mode == POSE){
-          motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z + CONTROLLER_STEP_COMMAND_ALTITUDE;
-          motion_reference_pose_msg.pose.orientation = motion_reference_pose_msg.pose.orientation;
-          pose_reference_publ.publish(motion_reference_pose_msg);
-        }
-
-        if (current_mode == ATTITUDE){
-          
-        }
+        motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z + CONTROLLER_STEP_COMMAND_ALTITUDE;
+        motion_reference_pose_msg.pose.orientation = motion_reference_pose_msg.pose.orientation;
+        pose_reference_publ.publish(motion_reference_pose_msg);
         printw("q      ");clrtoeol();
         move(17, 0); 
         printw("                        Last command:     Increase altitude         ");clrtoeol();
         break;
       case 'a':  //Move downwards
         move();
-        if (current_mode == GROUND_SPEED || current_mode == POSE){
           motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z - CONTROLLER_STEP_COMMAND_ALTITUDE;
           motion_reference_pose_msg.pose.orientation = motion_reference_pose_msg.pose.orientation;
           pose_reference_publ.publish(motion_reference_pose_msg);
-        }
-
-        if (current_mode == ATTITUDE){
-          
-        }
         printw("a        ");clrtoeol();
         move(17, 0); 
         printw("                        Last command:     Decrease altitude         ");clrtoeol(); 
@@ -234,25 +253,23 @@ int main(int argc, char** argv){
       case 'z':  //(yaw) turn counter-clockwise
       {        
         move();       
-        if (current_mode == GROUND_SPEED || current_mode == POSE){
-          tf2::Quaternion q_rot;
-          double r=0, p=0, yaw = 0;
-          if(motion_reference_pose_msg.pose.orientation.w == 0 && motion_reference_pose_msg.pose.orientation.x == 0 && motion_reference_pose_msg.pose.orientation.y == 0 && motion_reference_pose_msg.pose.orientation.z == 0){
-            yaw = 0;
-          }else{
-            yaw   = atan2(2.0 * (motion_reference_pose_msg.pose.orientation.z * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.y) ,
-           - 1.0 + 2.0 * (motion_reference_pose_msg.pose.orientation.w * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.x));
-          }
-          
-          yaw = yaw + CONTROLLER_STEP_COMMAND_YAW;
-          q_rot.setRPY(r, p, yaw);
-          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
-          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
-          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
-          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
-          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
-          pose_reference_publ.publish(motion_reference_pose_msg);
+        tf2::Quaternion q_rot;
+        double r=0, p=0, yaw = 0;
+        if(motion_reference_pose_msg.pose.orientation.w == 0 && motion_reference_pose_msg.pose.orientation.x == 0 && motion_reference_pose_msg.pose.orientation.y == 0 && motion_reference_pose_msg.pose.orientation.z == 0){
+          yaw = 0;
+        }else{
+          yaw   = atan2(2.0 * (motion_reference_pose_msg.pose.orientation.z * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.y) ,
+         - 1.0 + 2.0 * (motion_reference_pose_msg.pose.orientation.w * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.x));
         }
+        
+        yaw = yaw + CONTROLLER_STEP_COMMAND_YAW;
+        q_rot.setRPY(r, p, yaw);
+        motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+        motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+        motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+        motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+        motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+        pose_reference_publ.publish(motion_reference_pose_msg);
         printw("z       ");clrtoeol();
         move(17, 0); 
         printw("                        Last command:     Turn counter-clockwise        ");clrtoeol();  
@@ -261,25 +278,23 @@ int main(int argc, char** argv){
       case 'x':  // (yaw) turn clockwise
       {      
         move();       
-        if (current_mode == GROUND_SPEED || current_mode == POSE){
-          tf2::Quaternion q_rot;
-          double r=0, p=0, yaw = 0;
-          if(motion_reference_pose_msg.pose.orientation.w == 0 && motion_reference_pose_msg.pose.orientation.x == 0 && motion_reference_pose_msg.pose.orientation.y == 0 && motion_reference_pose_msg.pose.orientation.z == 0){
-            yaw = 0;
-          }else{
-            yaw   = atan2(2.0 * (motion_reference_pose_msg.pose.orientation.z * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.y) ,
-           - 1.0 + 2.0 * (motion_reference_pose_msg.pose.orientation.w * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.x));
-          }
-          
-          yaw = yaw - CONTROLLER_STEP_COMMAND_YAW;
-          q_rot.setRPY(r, p, yaw);
-          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
-          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
-          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
-          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
-          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
-          pose_reference_publ.publish(motion_reference_pose_msg);
+        tf2::Quaternion q_rot;
+        double r=0, p=0, yaw = 0;
+        if(motion_reference_pose_msg.pose.orientation.w == 0 && motion_reference_pose_msg.pose.orientation.x == 0 && motion_reference_pose_msg.pose.orientation.y == 0 && motion_reference_pose_msg.pose.orientation.z == 0){
+          yaw = 0;
+        }else{
+          yaw   = atan2(2.0 * (motion_reference_pose_msg.pose.orientation.z * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.y) ,
+         - 1.0 + 2.0 * (motion_reference_pose_msg.pose.orientation.w * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.x));
         }
+        
+        yaw = yaw - CONTROLLER_STEP_COMMAND_YAW;
+        q_rot.setRPY(r, p, yaw);
+        motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+        motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+        motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+        motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+        motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+        pose_reference_publ.publish(motion_reference_pose_msg);
         printw("x      ");clrtoeol();
         move(17, 0); 
         printw("                        Last command:     Turn clockwise          ");clrtoeol();
@@ -299,7 +314,12 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
-
+        if (current_mode == ATTITUDE){
+          command_pitch_roll_msg.pitchCmd = command_pitch_roll_msg.pitchCmd;
+          command_pitch_roll_msg.rollCmd = CONTROLLER_CTE_COMMAND_ATTITUDE;
+          command_pitch_roll_publ.publish(command_pitch_roll_msg);
+          right = true;
+        }   
         printw("\u2192            ");clrtoeol();
         move(17, 0); 
         printw("                        Last command:     Increase movement to the right        ");clrtoeol();  
@@ -318,6 +338,12 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
+        if (current_mode == ATTITUDE){
+          command_pitch_roll_msg.pitchCmd = command_pitch_roll_msg.pitchCmd;
+          command_pitch_roll_msg.rollCmd = -CONTROLLER_CTE_COMMAND_ATTITUDE;
+          command_pitch_roll_publ.publish(command_pitch_roll_msg);
+          left = true;
+        }         
         printw("\u2190            ");clrtoeol();
         move(17, 0); 
         printw("                        Last command:     Increase movement to the left         ");clrtoeol();
@@ -336,6 +362,12 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
+        if (current_mode == ATTITUDE){
+          command_pitch_roll_msg.pitchCmd = CONTROLLER_CTE_COMMAND_ATTITUDE;
+          command_pitch_roll_msg.rollCmd = command_pitch_roll_msg.rollCmd;
+          command_pitch_roll_publ.publish(command_pitch_roll_msg);
+          down = true;
+        }             
         printw("\u2193     ");clrtoeol();
         move(17, 0); 
         printw("                        Last command:     Increase backward      ");clrtoeol();
@@ -354,6 +386,12 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
+        if (current_mode == ATTITUDE){
+          command_pitch_roll_msg.pitchCmd = -CONTROLLER_CTE_COMMAND_ATTITUDE;
+          command_pitch_roll_msg.rollCmd = command_pitch_roll_msg.rollCmd;
+          command_pitch_roll_publ.publish(command_pitch_roll_msg);
+          up = true;
+        }        
         printw("\u2191    ");clrtoeol();
         move(17, 0); 
         printw("                        Last command:     Increase forward            ");clrtoeol();
@@ -363,31 +401,24 @@ int main(int argc, char** argv){
       printw("r        ");clrtoeol();
       move(17, 0); 
       printw("                        Last command:     Reset orientation           ");clrtoeol(); 
-      if (current_mode == POSE){
         motion_reference_pose_msg.pose.orientation.w = 0;
         motion_reference_pose_msg.pose.orientation.x = 0;
         motion_reference_pose_msg.pose.orientation.y = 0;
         motion_reference_pose_msg.pose.orientation.z = 0;
         motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
-        pose_reference_publ.publish(motion_reference_pose_msg);
-      }
-      if (current_mode == GROUND_SPEED){
-        motion_reference_pose_msg.pose.orientation.w = 0;
-        motion_reference_pose_msg.pose.orientation.x = 0;
-        motion_reference_pose_msg.pose.orientation.y = 0;
-        motion_reference_pose_msg.pose.orientation.z = 0;
-        motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
-        pose_reference_publ.publish(motion_reference_pose_msg);
-      }      
+        pose_reference_publ.publish(motion_reference_pose_msg);     
     }
     break;
     case '1':
     {
       printw("1        ");clrtoeol(); 
       move(17, 0);   
-      printw("                        Last command:     Ground speed               ");clrtoeol();    
+      printw("                        Last command:     Ground speed mode               ");clrtoeol();    
 
       if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
+          hover();
+          motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
+          pose_reference_publ.publish(motion_reference_pose_msg);         
           current_mode = GROUND_SPEED;
           printoutGroundSpeedControls();
         }
@@ -397,10 +428,13 @@ int main(int argc, char** argv){
     {
       printw("2        ");clrtoeol();
       move(17, 0); 
-      printw("                        Last command:     Pose          ");clrtoeol();        
+      printw("                        Last command:     Pose mode         ");clrtoeol();        
       if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE)){
-         printoutPoseControls();   
-         current_mode = POSE;    
+        hover();
+        motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
+        pose_reference_publ.publish(motion_reference_pose_msg);             
+        printoutPoseControls();   
+        current_mode = POSE;    
       }
     }
     break;  
@@ -408,8 +442,11 @@ int main(int argc, char** argv){
     {
       printw("3        ");clrtoeol();
       move(17, 0); 
-      printw("                        Last command:     Attitude           ");clrtoeol();    
+      printw("                        Last command:     Attitude mode          ");clrtoeol();    
       if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
+        hover();
+        motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
+        pose_reference_publ.publish(motion_reference_pose_msg);  
         current_mode = ATTITUDE;
         printoutAttitudeControls();
       }
@@ -441,42 +478,42 @@ void printout_stream(std::stringstream* pinterface_printout_stream, int* lineCom
 //Pose mode controls
 void printoutPoseControls(){
   move(4,0);clrtoeol();
-  printw(" Basic motions:                    Pose control");
+  printw(" BASIC MOTIONS                     POSE CONTROL");
   move(5,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   t:");attroff(COLOR_PAIR(5)); printw("      Take off              ");  
-  attron(COLOR_PAIR(5));printw("   \u2191:");attroff(COLOR_PAIR(5));printw("  Increase forward position %.2f m  ",CONTROLLER_CTE_COMMAND_POSE);
+  attron(COLOR_PAIR(5));printw("   t");attroff(COLOR_PAIR(5)); printw("      Take off              ");  
+  attron(COLOR_PAIR(5));printw("    \u2191");attroff(COLOR_PAIR(5));printw("  Increase forward position %.2f m  ",CONTROLLER_CTE_COMMAND_POSE);
   
   move(6,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   y:");attroff(COLOR_PAIR(5)); printw("      Land                  ");
-  attron(COLOR_PAIR(5));printw("   \u2193:");attroff(COLOR_PAIR(5));printw("  Increase backward position %.2f m  ",CONTROLLER_CTE_COMMAND_POSE);
+  attron(COLOR_PAIR(5));printw("   y");attroff(COLOR_PAIR(5)); printw("      Land                  ");
+  attron(COLOR_PAIR(5));printw("    \u2193");attroff(COLOR_PAIR(5));printw("  Increase backward position %.2f m  ",CONTROLLER_CTE_COMMAND_POSE);
   
   move(7,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   h:");attroff(COLOR_PAIR(5)); printw("      Keep hovering         ");
-  attron(COLOR_PAIR(5));printw("   \u2192:");attroff(COLOR_PAIR(5));printw("  Increase position to the right %.2f m  ",CONTROLLER_CTE_COMMAND_POSE);  
+  attron(COLOR_PAIR(5));printw("   h");attroff(COLOR_PAIR(5)); printw("      Keep hovering         ");
+  attron(COLOR_PAIR(5));printw("    \u2192");attroff(COLOR_PAIR(5));printw("  Increase position to the right %.2f m  ",CONTROLLER_CTE_COMMAND_POSE);  
 
   move(8,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   space: ");attroff(COLOR_PAIR(5));printw(" Emergency stop        ");
-  attron(COLOR_PAIR(5));printw("   \u2190:");attroff(COLOR_PAIR(5));printw("  Increase position to the left %.2f m  ",CONTROLLER_CTE_COMMAND_POSE);
+  attron(COLOR_PAIR(5));printw("   space ");attroff(COLOR_PAIR(5));printw(" Emergency stop        ");
+  attron(COLOR_PAIR(5));printw("    \u2190");attroff(COLOR_PAIR(5));printw("  Increase position to the left %.2f m  ",CONTROLLER_CTE_COMMAND_POSE);
   
   move(9,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   r:");attroff(COLOR_PAIR(5));printw("      Reset orientation    ");  
+  attron(COLOR_PAIR(5));printw("   r");attroff(COLOR_PAIR(5));printw("      Reset orientation    ");  
   
   move(10,0);clrtoeol();
   printw("                                   ");
-  attron(COLOR_PAIR(5));printw(" q:");attroff(COLOR_PAIR(5));printw("  Increase altitude %.2f m           ",CONTROLLER_STEP_COMMAND_ALTITUDE);
+  attron(COLOR_PAIR(5));printw(" q");attroff(COLOR_PAIR(5));printw("  Increase altitude %.2f m           ",CONTROLLER_STEP_COMMAND_ALTITUDE);
   move(11,0);clrtoeol();
-  printw(" Teleoperation mode selection:     ");
-  attron(COLOR_PAIR(5));printw(" a:");attroff(COLOR_PAIR(5));printw("  Decrease altitude %.2f m            ",CONTROLLER_STEP_COMMAND_ALTITUDE);
+  printw(" TELEOPERATION MODE SELECTION     ");
+  attron(COLOR_PAIR(5));printw("  a");attroff(COLOR_PAIR(5));printw("  Decrease altitude %.2f m            ",CONTROLLER_STEP_COMMAND_ALTITUDE);
   move(12,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   1:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(4));printw("      Ground speed    ");attroff(COLOR_PAIR(4));
+  attron(COLOR_PAIR(5));printw("   1");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(4));printw("      Ground speed mode");attroff(COLOR_PAIR(4));
   
   move(13,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   2:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(2));printw("      Pose                 ");attroff(COLOR_PAIR(2));  
-  attron(COLOR_PAIR(5));printw("    z:");attroff(COLOR_PAIR(5));printw("  Turn counter-clockwise %.2f rad      ",CONTROLLER_STEP_COMMAND_YAW);
+  attron(COLOR_PAIR(5));printw("   2");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(2));printw("      Pose mode            ");attroff(COLOR_PAIR(2));  
+  attron(COLOR_PAIR(5));printw("     z");attroff(COLOR_PAIR(5));printw("  Turn counter-clockwise %.2f rad      ",CONTROLLER_STEP_COMMAND_YAW);
   
   move(14,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   3:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(3));printw("      Attitude              "); attroff(COLOR_PAIR(3)); 
-  attron(COLOR_PAIR(5));printw("   x:");attroff(COLOR_PAIR(5));printw("  Turn clockwise %.2f rad        ",CONTROLLER_STEP_COMMAND_YAW);
+  attron(COLOR_PAIR(5));printw("   3");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(3));printw("      Attitude mode         "); attroff(COLOR_PAIR(3)); 
+  attron(COLOR_PAIR(5));printw("    x");attroff(COLOR_PAIR(5));printw("  Turn clockwise %.2f rad        ",CONTROLLER_STEP_COMMAND_YAW);
   move(15,0);clrtoeol();
   printw("--------------------------------------------------------------------------------");
   refresh();
@@ -485,43 +522,43 @@ void printoutPoseControls(){
 //Ground speed mode controls
 void printoutGroundSpeedControls(){
   move(4,0);clrtoeol();
-  printw(" Basic motions:                    Ground speed control:");
+  printw(" BASIC MOTIONS                     GROUND SPEED CONTROL");
   move(5,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   t:");attroff(COLOR_PAIR(5)); printw("      Take off              ");  
-  attron(COLOR_PAIR(5));printw("   \u2191:");attroff(COLOR_PAIR(5));printw("  Increase forward speed %.2f m/s  ",CONTROLLER_CTE_COMMAND_SPEED);
+  attron(COLOR_PAIR(5));printw("   t");attroff(COLOR_PAIR(5)); printw("      Take off              ");  
+  attron(COLOR_PAIR(5));printw("    \u2191");attroff(COLOR_PAIR(5));printw("  Increase forward speed %.2f m/s  ",CONTROLLER_CTE_COMMAND_SPEED);
   
   move(6,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   y:");attroff(COLOR_PAIR(5)); printw("      Land                  ");
-  attron(COLOR_PAIR(5));printw("   \u2193:");attroff(COLOR_PAIR(5));printw("  Increase backward speed %.2f m/s  ",CONTROLLER_CTE_COMMAND_SPEED);
+  attron(COLOR_PAIR(5));printw("   y");attroff(COLOR_PAIR(5)); printw("      Land                  ");
+  attron(COLOR_PAIR(5));printw("    \u2193");attroff(COLOR_PAIR(5));printw("  Increase backward speed %.2f m/s  ",CONTROLLER_CTE_COMMAND_SPEED);
   
   move(7,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   h:");attroff(COLOR_PAIR(5)); printw("      Keep hovering         ");
-  attron(COLOR_PAIR(5));printw("   \u2192:");attroff(COLOR_PAIR(5));printw("  Increase speed to the right %.2f m/s  ",CONTROLLER_CTE_COMMAND_SPEED);  
+  attron(COLOR_PAIR(5));printw("   h");attroff(COLOR_PAIR(5)); printw("      Keep hovering         ");
+  attron(COLOR_PAIR(5));printw("    \u2192");attroff(COLOR_PAIR(5));printw("  Increase speed to the right %.2f m/s  ",CONTROLLER_CTE_COMMAND_SPEED);  
 
   move(8,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   space: ");attroff(COLOR_PAIR(5));printw(" Emergency stop        ");
-  attron(COLOR_PAIR(5));printw("   \u2190:");attroff(COLOR_PAIR(5));printw("  Increase speed to the left %.2f m/s  ",CONTROLLER_CTE_COMMAND_SPEED);
+  attron(COLOR_PAIR(5));printw("   space ");attroff(COLOR_PAIR(5));printw(" Emergency stop        ");
+  attron(COLOR_PAIR(5));printw("    \u2190");attroff(COLOR_PAIR(5));printw("  Increase speed to the left %.2f m/s  ",CONTROLLER_CTE_COMMAND_SPEED);
   
   move(9,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   r:");attroff(COLOR_PAIR(5));printw("      Reset orientation    ");  
+  attron(COLOR_PAIR(5));printw("   r");attroff(COLOR_PAIR(5));printw("      Reset orientation    ");  
   
   move(10,0);clrtoeol();
-  printw("                                   Pose control:");
+  printw("                                   POSE CONTROL");
   
   move(11,0);clrtoeol();
-  printw(" Teleoperation mode selection:     ");
-  attron(COLOR_PAIR(5));printw(" q:");attroff(COLOR_PAIR(5));printw("  Increase altitude %.2f m           ",CONTROLLER_STEP_COMMAND_ALTITUDE);
+  printw(" TELEOPERATION MODE SELECTION      ");
+  attron(COLOR_PAIR(5));printw(" q");attroff(COLOR_PAIR(5));printw("  Increase altitude %.2f m           ",CONTROLLER_STEP_COMMAND_ALTITUDE);
   
   move(12,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   1:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(4));printw("      Ground speed    ");attroff(COLOR_PAIR(4));
-  attron(COLOR_PAIR(5));printw("         a:");attroff(COLOR_PAIR(5));printw("  Decrease altitude %.2f m            ",CONTROLLER_STEP_COMMAND_ALTITUDE);
+  attron(COLOR_PAIR(5));printw("   1");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(4));printw("      Ground speed mode");attroff(COLOR_PAIR(4));
+  attron(COLOR_PAIR(5));printw("         a");attroff(COLOR_PAIR(5));printw("  Decrease altitude %.2f m            ",CONTROLLER_STEP_COMMAND_ALTITUDE);
   move(13,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   2:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(2));printw("      Pose                 ");  attroff(COLOR_PAIR(2));
-  attron(COLOR_PAIR(5));printw("    z:");attroff(COLOR_PAIR(5));printw("  Turn counter-clockwise %.2f rad      ",CONTROLLER_STEP_COMMAND_YAW);
+  attron(COLOR_PAIR(5));printw("   2");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(2));printw("      Pose mode            ");  attroff(COLOR_PAIR(2));
+  attron(COLOR_PAIR(5));printw("     z");attroff(COLOR_PAIR(5));printw("  Turn counter-clockwise %.2f rad      ",CONTROLLER_STEP_COMMAND_YAW);
   
   move(14,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   3:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(3));printw("      Attitude              "); attroff(COLOR_PAIR(3));
-  attron(COLOR_PAIR(5));printw("   x:");attroff(COLOR_PAIR(5));printw("  Turn clockwise %.2f rad        ",CONTROLLER_STEP_COMMAND_YAW);
+  attron(COLOR_PAIR(5));printw("   3");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(3));printw("      Attitude mode         "); attroff(COLOR_PAIR(3));
+  attron(COLOR_PAIR(5));printw("    x");attroff(COLOR_PAIR(5));printw("  Turn clockwise %.2f rad        ",CONTROLLER_STEP_COMMAND_YAW);
   move(15,0);clrtoeol();
   printw("--------------------------------------------------------------------------------");
   refresh();
@@ -529,43 +566,43 @@ void printoutGroundSpeedControls(){
 //Attitude mode controls
 void printoutAttitudeControls(){
   move(4,0);clrtoeol();
-  printw(" Basic motions:                    Attitude control:");
+  printw(" BASIC MOTIONS                     ATTITUDE CONTROL");
   move(5,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   t:");attroff(COLOR_PAIR(5)); printw("      Take off              ");  
-  attron(COLOR_PAIR(5));printw("   \u2191:");attroff(COLOR_PAIR(5));printw("  Pitch %.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);
+  attron(COLOR_PAIR(5));printw("   t");attroff(COLOR_PAIR(5)); printw("      Take off              ");  
+  attron(COLOR_PAIR(5));printw("    \u2191");attroff(COLOR_PAIR(5));printw("  Pitch %.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);
   
   move(6,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   y:");attroff(COLOR_PAIR(5)); printw("      Land                  ");
-  attron(COLOR_PAIR(5));printw("   \u2193:");attroff(COLOR_PAIR(5));printw("  Pitch -%.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);
+  attron(COLOR_PAIR(5));printw("   y");attroff(COLOR_PAIR(5)); printw("      Land                  ");
+  attron(COLOR_PAIR(5));printw("    \u2193");attroff(COLOR_PAIR(5));printw("  Pitch -%.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);
   
   move(7,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   h:");attroff(COLOR_PAIR(5)); printw("      Keep hovering         ");
-  attron(COLOR_PAIR(5));printw("   \u2192:");attroff(COLOR_PAIR(5));printw("  Roll %.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);  
+  attron(COLOR_PAIR(5));printw("   h");attroff(COLOR_PAIR(5)); printw("      Keep hovering         ");
+  attron(COLOR_PAIR(5));printw("    \u2192");attroff(COLOR_PAIR(5));printw("  Roll %.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);  
 
   move(8,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   space: ");attroff(COLOR_PAIR(5));printw(" Emergency stop        ");
-  attron(COLOR_PAIR(5));printw("   \u2190:");attroff(COLOR_PAIR(5));printw("  Roll -%.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE);
+  attron(COLOR_PAIR(5));printw("   space ");attroff(COLOR_PAIR(5));printw(" Emergency stop        ");
+  attron(COLOR_PAIR(5));printw("    \u2190");attroff(COLOR_PAIR(5));printw("  Roll -%.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);
   
   move(9,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   r:");attroff(COLOR_PAIR(5));printw("      Reset orientation    ");  
+  attron(COLOR_PAIR(5));printw("   r");attroff(COLOR_PAIR(5));printw("      Reset orientation    ");  
   
   move(10,0);clrtoeol();
-  printw("                                   Pose control:");
+  printw("                                   POSE CONTROL");
   
   move(11,0);clrtoeol();
-  printw(" Teleoperation mode selection:     ");
-  attron(COLOR_PAIR(5));printw(" q:");attroff(COLOR_PAIR(5));printw("  Increase altitude %.2f m           ",CONTROLLER_STEP_COMMAND_ALTITUDE);
+  printw(" TELEOPERATION MODE SELECTION      ");
+  attron(COLOR_PAIR(5));printw(" q");attroff(COLOR_PAIR(5));printw("  Increase altitude %.2f m           ",CONTROLLER_STEP_COMMAND_ALTITUDE);
   
   move(12,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   1:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(4));printw("      Ground speed    ");attroff(COLOR_PAIR(4));
-  attron(COLOR_PAIR(5));printw("         a:");attroff(COLOR_PAIR(5));printw("  Decrease altitude %.2f m            ",CONTROLLER_STEP_COMMAND_ALTITUDE);
+  attron(COLOR_PAIR(5));printw("   1");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(4));printw("      Ground speed mode");attroff(COLOR_PAIR(4));
+  attron(COLOR_PAIR(5));printw("         a");attroff(COLOR_PAIR(5));printw("  Decrease altitude %.2f m            ",CONTROLLER_STEP_COMMAND_ALTITUDE);
   move(13,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   2:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(2));printw("      Pose                 ");  attroff(COLOR_PAIR(2));
-  attron(COLOR_PAIR(5));printw("    z:");attroff(COLOR_PAIR(5));printw("  Turn counter-clockwise %.2f rad      ",CONTROLLER_STEP_COMMAND_YAW);
+  attron(COLOR_PAIR(5));printw("   2");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(2));printw("      Pose mode            ");  attroff(COLOR_PAIR(2));
+  attron(COLOR_PAIR(5));printw("     z");attroff(COLOR_PAIR(5));printw("  Turn counter-clockwise %.2f rad      ",CONTROLLER_STEP_COMMAND_YAW);
   
   move(14,0);clrtoeol();
-  attron(COLOR_PAIR(5));printw("   3:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(3));printw("      Attitude              "); attroff(COLOR_PAIR(3));
-  attron(COLOR_PAIR(5));printw("   x:");attroff(COLOR_PAIR(5));printw("  Turn clockwise %.2f rad        ",CONTROLLER_STEP_COMMAND_YAW);
+  attron(COLOR_PAIR(5));printw("   3");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(3));printw("      Attitude mode         "); attroff(COLOR_PAIR(3));
+  attron(COLOR_PAIR(5));printw("    x");attroff(COLOR_PAIR(5));printw("  Turn clockwise %.2f rad        ",CONTROLLER_STEP_COMMAND_YAW);
   move(15,0);clrtoeol();
   printw("--------------------------------------------------------------------------------");
   refresh();
@@ -655,3 +692,47 @@ void selfLocalizationPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& ms
   self_localization_pose_msg = (*msg);
 }
 
+void commandPitchRollCallback(const droneMsgsROS::dronePitchRollCmd::ConstPtr& msg){
+  if(current_mode != ATTITUDE){
+    command_pitch_roll_publ.publish(*msg);
+  } 
+}
+
+//Pitch and Roll stop after CONTROLLER_CTE_COMMAND_ATTITUDE_TIME seconds
+
+void commandPitchRollCallbackStop(const droneMsgsROS::dronePitchRollCmd::ConstPtr& msg){
+  if(current_mode == ATTITUDE){
+    if (right){
+      right = false;
+      boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
+      command_pitch_roll_msg_temp.pitchCmd = command_pitch_roll_msg.pitchCmd;
+      command_pitch_roll_msg_temp.rollCmd = 0;
+      command_pitch_roll_msg.rollCmd = 0;
+      command_pitch_roll_publ.publish(command_pitch_roll_msg_temp);
+    }
+    if (left){
+      left = false;
+      boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
+      command_pitch_roll_msg_temp.pitchCmd = command_pitch_roll_msg.pitchCmd;
+      command_pitch_roll_msg_temp.rollCmd = 0;
+       command_pitch_roll_msg.rollCmd = 0;
+      command_pitch_roll_publ.publish(command_pitch_roll_msg_temp);
+    } 
+    if (up){
+      up = false;
+      boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
+      command_pitch_roll_msg_temp.pitchCmd = 0;
+      command_pitch_roll_msg_temp.rollCmd = command_pitch_roll_msg.rollCmd;
+      command_pitch_roll_msg.pitchCmd = 0;
+      command_pitch_roll_publ.publish(command_pitch_roll_msg_temp);
+    }   
+    if (down){
+      down = false;
+      boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
+      command_pitch_roll_msg_temp.pitchCmd = 0;
+      command_pitch_roll_msg.pitchCmd = 0;
+      command_pitch_roll_msg_temp.rollCmd = command_pitch_roll_msg.rollCmd;
+      command_pitch_roll_publ.publish(command_pitch_roll_msg_temp);
+    }             
+  } 
+}
