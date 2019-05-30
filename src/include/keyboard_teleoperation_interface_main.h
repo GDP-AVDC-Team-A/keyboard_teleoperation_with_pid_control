@@ -68,19 +68,16 @@
 #define ASCII_KEY_LEFT 68
 
 // Define controller commands define constants
-#define CONTROLLER_CTE_COMMAND_SPEED (1.00)
-#define CONTROLLER_CTE_COMMAND_POSE (1.00)
-#define CONTROLLER_CTE_COMMAND_ATTITUDE (0.20)
-#define CONTROLLER_CTE_COMMAND_ATTITUDE_TIME (0.50)
-#define CONTROLLER_STEP_COMMAND_ALTITUDE (0.25)
-#define CONTROLLER_STEP_COMMAND_YAW (0.1)
+#define CTE_SPEED (1.00)
+#define CTE_POSE (1.00)
+#define CTE_COMMANDS (0.20)
+#define CTE_COMMANDS_TIME (0.50)
+#define CTE_ALTITUDE (1.00)
+#define CTE_YAW (0.1)
 //Loop rate
 #define FREQ_INTERFACE 200.0
 
-#define DISPLAY_COLUMN_SIZE 22
-
-
-int miliseconds = CONTROLLER_CTE_COMMAND_ATTITUDE_TIME * 1000;
+int miliseconds = CTE_COMMANDS_TIME * 1000;
 const int GROUND_SPEED = 1;
 const int POSE = 2;
 const int ATTITUDE = 3;
@@ -122,7 +119,6 @@ aerostack_msgs::RequestBehavior::Response res;
 aerostack_msgs::BehaviorCommand behavior;
 
 //Functions
-void printout_stream(std::stringstream* pinterface_printout_stream, int* lineCommands, int* columCommands);
 void printoutPoseControls();
 void printoutGroundSpeedControls();
 void printoutAttitudeControls();
