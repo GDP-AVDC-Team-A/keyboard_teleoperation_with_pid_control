@@ -1,7 +1,7 @@
 /*!*******************************************************************************************
  *  \file       keyboard_teleoperation_interface_main.cpp
  *  \brief      Keyboard teleoperation inferface implementation file.
- *  \details    The keyboard teleoperation interface provides control vehicle by keyboard only in SPEED MODE
+ *  \details    The keyboard teleoperation interface provides control vehicle by keyboard
  *              It allows multiple commands: Take off, land, move, hover, rotate...
  *  \authors    Alberto Rodelgo Perales
  *  \copyright  Copyright (c) 2019 Universidad Politecnica de Madrid
@@ -94,8 +94,6 @@ int main(int argc, char** argv){
   init_pair(5, COLOR_YELLOW, -1);
 
 
-  advanced = false;
-
   //Input variable
   char command = 0;
 
@@ -112,7 +110,7 @@ int main(int argc, char** argv){
   //Wait 3sec for initialization
   sleep(3);
 
-
+  //Teleoperation control mode
   current_mode = GROUND_SPEED;
 
   //Services
@@ -130,7 +128,6 @@ int main(int argc, char** argv){
   move(3,0);clrtoeol();
   printw("--------------------------------------------------------------------------------");
   //Print controls
-  //printoutPoseControls();
   printoutGroundSpeedControls();
   setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED);
   //LOOP
@@ -149,7 +146,7 @@ int main(int argc, char** argv){
           break;
           case ATTITUDE:
             move(2, 0);
-            attron(COLOR_PAIR(3));printw("                           Teleoperation mode: Attitude      "); attroff(COLOR_PAIR(3));
+            attron(COLOR_PAIR(3));printw("                        Teleoperation mode: Attitude      "); attroff(COLOR_PAIR(3));
             clrtoeol(); refresh();  
           break;
           case GROUND_SPEED:
@@ -159,7 +156,7 @@ int main(int argc, char** argv){
           break;
           default:
             move(2, 0);
-            printw("                           Teleoperation mode: Unknown          ");
+            printw("                        Teleoperation mode: Unknown          ");
             clrtoeol(); refresh();   
           break;      
     }
@@ -171,37 +168,28 @@ int main(int argc, char** argv){
     switch (command){
       case 't':  // Take off
         takeOff();
-        printw("t       ");
-        clrtoeol();
-                  motion_reference_pose_msg.pose.position.z = 1;
-          pose_reference_publ.publish(motion_reference_pose_msg);
+        printw("t       ");clrtoeol();
+        motion_reference_pose_msg.pose.position.z = 0.70;
+        pose_reference_publ.publish(motion_reference_pose_msg);
         move(17, 0); 
-        //printw("             Action: Executes the takeoff");
-        printw("                        Last command:     Take off           ");
-        clrtoeol();refresh();
+        printw("                        Last command:     Take off           ");clrtoeol();
         break;
       case 'y':  // Land
         hover();
         land();
-        printw("y        ");
-        clrtoeol(); 
+        printw("y        ");clrtoeol(); 
         move(17, 0); 
-        //printw("             Action: Stops the vehicle, proceeds the landing");
-        printw("                        Last command:     Land             ");
-        clrtoeol(); refresh();              
+        printw("                        Last command:     Land             ");clrtoeol();            
         break;
       case ' ':  // Emergency stop 
         emergencyStop();
-        printw("space     ");
-        clrtoeol(); 
+        printw("space     ");clrtoeol(); 
         move(17, 0); 
-        //printw("             Action: Executes an emergency stop");
-        printw("                        Last command:     Emergency stop            ");
-        clrtoeol();refresh();   
+        printw("                        Last command:     Emergency stop            ");clrtoeol();
         break;
       case 'h':  // Hover   
         hover();
-        printw("h      ");
+        printw("h      ");clrtoeol();
         if (current_mode == POSE){
           motion_reference_pose_msg.pose= self_localization_pose_msg.pose;
           pose_reference_publ.publish(motion_reference_pose_msg);
@@ -211,11 +199,7 @@ int main(int argc, char** argv){
             clearSpeedReferences();
             publishSpeedReference();
         }
-        clrtoeol();
-        move(17, 0); 
-        //printw("             Action: Proceeds to remain the vehicle in the current place");
-        printw("                        Last command:     Hovering             ");
-        clrtoeol(); refresh();             
+        move(17, 0); printw("                        Last command:     Hovering             ");clrtoeol();             
         break;
       case 'q':  // Move upwards
         move();
@@ -228,17 +212,9 @@ int main(int argc, char** argv){
         if (current_mode == ATTITUDE){
           
         }
-        speed_reference_msg.twist.linear.x = current_speed_ref.twist.linear.x;
-        speed_reference_msg.twist.linear.y = current_speed_ref.twist.linear.y;
-        speed_reference_msg.twist.linear.z = current_speed_ref.twist.linear.z + CONTROLLER_STEP_COMMAND_ALTITUDE;
-        speed_reference_msg.twist.angular = current_speed_ref.twist.angular;                                    
-        publishSpeedReference();
-        printw("q      ");
-        clrtoeol();
+        printw("q      ");clrtoeol();
         move(17, 0); 
-        //printw("             Action: Adds %.2f dz speed to the vehicle",CONTROLLER_STEP_COMMAND_ALTITUDE);
-        printw("                        Last command:     Increase altitude         ");
-        clrtoeol(); refresh();
+        printw("                        Last command:     Increase altitude         ");clrtoeol();
         break;
       case 'a':  //Move downwards
         move();
@@ -251,12 +227,9 @@ int main(int argc, char** argv){
         if (current_mode == ATTITUDE){
           
         }
-        printw("a        ");
-        clrtoeol();
+        printw("a        ");clrtoeol();
         move(17, 0); 
-        //printw("             Action: Subtracts %.2f dz speed to the vehicle",CONTROLLER_STEP_COMMAND_ALTITUDE);
-        printw("                        Last command:     Decrease altitude         ");
-        clrtoeol();refresh();   
+        printw("                        Last command:     Decrease altitude         ");clrtoeol(); 
         break;         
       case 'z':  //(yaw) turn counter-clockwise
       {        
@@ -280,12 +253,9 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
-        printw("z       ");
-        clrtoeol();
+        printw("z       ");clrtoeol();
         move(17, 0); 
-        //printw("             Action: Subtracts %.2f dyaw speed to the vehicle",CONTROLLER_STEP_COMMAND_YAW);
-        printw("                        Last command:     Turn counter-clockwise        ");
-        clrtoeol(); refresh();   
+        printw("                        Last command:     Turn counter-clockwise        ");clrtoeol();  
         break;    
       }      
       case 'x':  // (yaw) turn clockwise
@@ -310,12 +280,9 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
-        printw("x      ");
-        clrtoeol();
+        printw("x      ");clrtoeol();
         move(17, 0); 
-        //printw("             Action: Adds %.2f dyaw speed to the vehicle",CONTROLLER_STEP_COMMAND_YAW);
-        printw("                        Last command:     Turn clockwise          ");
-        clrtoeol();   refresh();
+        printw("                        Last command:     Turn clockwise          ");clrtoeol();
       }
         break;                 
       case ASCII_KEY_RIGHT:
@@ -333,12 +300,9 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
 
-        printw("\u2192            ");
-        clrtoeol();
+        printw("\u2192            ");clrtoeol();
         move(17, 0); 
-        //printw("             Action: Subtracts %.2f dy speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
-        printw("                        Last command:     Increase movement to the right        ");
-        clrtoeol();refresh();   
+        printw("                        Last command:     Increase movement to the right        ");clrtoeol();  
         break;               
       case ASCII_KEY_LEFT:
         move();
@@ -354,12 +318,9 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
-        printw("\u2190            ");
-        clrtoeol();
+        printw("\u2190            ");clrtoeol();
         move(17, 0); 
-        //printw("             Action: Adds %.2f dy speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
-        printw("                        Last command:     Increase movement to the left         ");
-        clrtoeol();     refresh();
+        printw("                        Last command:     Increase movement to the left         ");clrtoeol();
         break;       
       case ASCII_KEY_DOWN:
         move();
@@ -375,12 +336,9 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
-        printw("\u2193     ");
-        clrtoeol();
+        printw("\u2193     ");clrtoeol();
         move(17, 0); 
-        //printw("             Action: Subtracts %.2f dx speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
-        printw("                        Last command:     Increase backward      ");
-        clrtoeol();  refresh();  
+        printw("                        Last command:     Increase backward      ");clrtoeol();
         break;        
       case ASCII_KEY_UP:
         move();
@@ -396,23 +354,15 @@ int main(int argc, char** argv){
           motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z;
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
-        printw("\u2191    ");
-        clrtoeol();
+        printw("\u2191    ");clrtoeol();
         move(17, 0); 
-        //printw("             Action: Adds %.2f dx speed to the vehicle",CONTROLLER_CTE_COMMAND_SPEED);
-        printw("                        Last command:     Increase forward            ");
-        clrtoeol(); refresh(); 
+        printw("                        Last command:     Increase forward            ");clrtoeol();
         break;         
     case 'r':
     {
-      printw("r        ");
-      clrtoeol();
+      printw("r        ");clrtoeol();
       move(17, 0); 
-      //printw("             Action: Sets orientation to 0 in SPEED 3D mode.");
-      printw("                        Last command:     Reset orientation           ");
-      clrtoeol(); 
-      refresh();      
-  
+      printw("                        Last command:     Reset orientation           ");clrtoeol(); 
       if (current_mode == POSE){
         motion_reference_pose_msg.pose.orientation.w = 0;
         motion_reference_pose_msg.pose.orientation.x = 0;
@@ -433,55 +383,44 @@ int main(int argc, char** argv){
     break;
     case '1':
     {
-      printw("1        ");
-      clrtoeol();
-      move(17, 0); 
-      //printw("             Action: Sets orientation to 0 in SPEED 3D mode.");
-      printw("                        Last command:     Ground speed           ");
-      clrtoeol(); 
-      refresh();          
-      if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
-        current_mode = GROUND_SPEED;
-        printoutGroundSpeedControls();
-      }
+      printw("1        ");clrtoeol(); 
+      move(17, 0);   
+      printw("                        Last command:     Ground speed               ");clrtoeol();    
 
+      if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
+          current_mode = GROUND_SPEED;
+          printoutGroundSpeedControls();
+        }
     }
     break;    
     case '2':
     {
-      printw("2        ");
-      clrtoeol();
+      printw("2        ");clrtoeol();
       move(17, 0); 
-      //printw("             Action: Sets orientation to 0 in SPEED 3D mode.");
-      printw("                        Last command:     Pose          ");
-      clrtoeol(); 
-      refresh();          
+      printw("                        Last command:     Pose          ");clrtoeol();        
       if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE)){
          printoutPoseControls();   
          current_mode = POSE;    
       }
-      
-
     }
     break;  
     case '3':
     {
-
-
-
+      printw("3        ");clrtoeol();
+      move(17, 0); 
+      printw("                        Last command:     Attitude           ");clrtoeol();    
+      if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
+        current_mode = ATTITUDE;
+        printoutAttitudeControls();
+      }
     }
     break;                   
     }
-
-
     refresh();
     loop_rate.sleep();
   }
 
   endwin();
-
-  printf("Keyboard Teleoperation ended..\n");
-
   return 0;
 }
 
@@ -499,7 +438,7 @@ void printout_stream(std::stringstream* pinterface_printout_stream, int* lineCom
   }
 }
 
-//Controls
+//Pose mode controls
 void printoutPoseControls(){
   move(4,0);clrtoeol();
   printw(" Basic motions:                    Pose control");
@@ -543,7 +482,7 @@ void printoutPoseControls(){
   refresh();
 }
 
-//Advanced Controls
+//Ground speed mode controls
 void printoutGroundSpeedControls(){
   move(4,0);clrtoeol();
   printw(" Basic motions:                    Ground speed control:");
@@ -571,11 +510,55 @@ void printoutGroundSpeedControls(){
   
   move(11,0);clrtoeol();
   printw(" Teleoperation mode selection:     ");
-  attron(COLOR_PAIR(5));printw(" q:");attroff(COLOR_PAIR(5));printw("  Move upwards              ");
+  attron(COLOR_PAIR(5));printw(" q:");attroff(COLOR_PAIR(5));printw("  Increase altitude %.2f m           ",CONTROLLER_STEP_COMMAND_ALTITUDE);
   
   move(12,0);clrtoeol();
   attron(COLOR_PAIR(5));printw("   1:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(4));printw("      Ground speed    ");attroff(COLOR_PAIR(4));
-  attron(COLOR_PAIR(5));printw("         a:");attroff(COLOR_PAIR(5));printw("  Move downwards            ");
+  attron(COLOR_PAIR(5));printw("         a:");attroff(COLOR_PAIR(5));printw("  Decrease altitude %.2f m            ",CONTROLLER_STEP_COMMAND_ALTITUDE);
+  move(13,0);clrtoeol();
+  attron(COLOR_PAIR(5));printw("   2:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(2));printw("      Pose                 ");  attroff(COLOR_PAIR(2));
+  attron(COLOR_PAIR(5));printw("    z:");attroff(COLOR_PAIR(5));printw("  Turn counter-clockwise %.2f rad      ",CONTROLLER_STEP_COMMAND_YAW);
+  
+  move(14,0);clrtoeol();
+  attron(COLOR_PAIR(5));printw("   3:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(3));printw("      Attitude              "); attroff(COLOR_PAIR(3));
+  attron(COLOR_PAIR(5));printw("   x:");attroff(COLOR_PAIR(5));printw("  Turn clockwise %.2f rad        ",CONTROLLER_STEP_COMMAND_YAW);
+  move(15,0);clrtoeol();
+  printw("--------------------------------------------------------------------------------");
+  refresh();
+}
+//Attitude mode controls
+void printoutAttitudeControls(){
+  move(4,0);clrtoeol();
+  printw(" Basic motions:                    Attitude control:");
+  move(5,0);clrtoeol();
+  attron(COLOR_PAIR(5));printw("   t:");attroff(COLOR_PAIR(5)); printw("      Take off              ");  
+  attron(COLOR_PAIR(5));printw("   \u2191:");attroff(COLOR_PAIR(5));printw("  Pitch %.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);
+  
+  move(6,0);clrtoeol();
+  attron(COLOR_PAIR(5));printw("   y:");attroff(COLOR_PAIR(5)); printw("      Land                  ");
+  attron(COLOR_PAIR(5));printw("   \u2193:");attroff(COLOR_PAIR(5));printw("  Pitch -%.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);
+  
+  move(7,0);clrtoeol();
+  attron(COLOR_PAIR(5));printw("   h:");attroff(COLOR_PAIR(5)); printw("      Keep hovering         ");
+  attron(COLOR_PAIR(5));printw("   \u2192:");attroff(COLOR_PAIR(5));printw("  Roll %.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE_TIME);  
+
+  move(8,0);clrtoeol();
+  attron(COLOR_PAIR(5));printw("   space: ");attroff(COLOR_PAIR(5));printw(" Emergency stop        ");
+  attron(COLOR_PAIR(5));printw("   \u2190:");attroff(COLOR_PAIR(5));printw("  Roll -%.2f rad during %.2f s  ",CONTROLLER_CTE_COMMAND_ATTITUDE,CONTROLLER_CTE_COMMAND_ATTITUDE);
+  
+  move(9,0);clrtoeol();
+  attron(COLOR_PAIR(5));printw("   r:");attroff(COLOR_PAIR(5));printw("      Reset orientation    ");  
+  
+  move(10,0);clrtoeol();
+  printw("                                   Pose control:");
+  
+  move(11,0);clrtoeol();
+  printw(" Teleoperation mode selection:     ");
+  attron(COLOR_PAIR(5));printw(" q:");attroff(COLOR_PAIR(5));printw("  Increase altitude %.2f m           ",CONTROLLER_STEP_COMMAND_ALTITUDE);
+  
+  move(12,0);clrtoeol();
+  attron(COLOR_PAIR(5));printw("   1:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(4));printw("      Ground speed    ");attroff(COLOR_PAIR(4));
+  attron(COLOR_PAIR(5));printw("         a:");attroff(COLOR_PAIR(5));printw("  Decrease altitude %.2f m            ",CONTROLLER_STEP_COMMAND_ALTITUDE);
   move(13,0);clrtoeol();
   attron(COLOR_PAIR(5));printw("   2:");attroff(COLOR_PAIR(5));attron(COLOR_PAIR(2));printw("      Pose                 ");  attroff(COLOR_PAIR(2));
   attron(COLOR_PAIR(5));printw("    z:");attroff(COLOR_PAIR(5));printw("  Turn counter-clockwise %.2f rad      ",CONTROLLER_STEP_COMMAND_YAW);
@@ -619,7 +602,7 @@ void land(){
 void emergencyStop(){
   clearSpeedReferences();
   publishSpeedReference();
-  command_order.command = droneMsgsROS::droneCommand::EMERGENCY_STOP;
+  command_order.command = droneMsgsROS::droneCommand::RESET;
   publishCmd();
 }
 

@@ -65,6 +65,8 @@
 // Define controller commands define constants
 #define CONTROLLER_CTE_COMMAND_SPEED (1.00)
 #define CONTROLLER_CTE_COMMAND_POSE (1.00)
+#define CONTROLLER_CTE_COMMAND_ATTITUDE (0.20)
+#define CONTROLLER_CTE_COMMAND_ATTITUDE_TIME (0.50)
 #define CONTROLLER_STEP_COMMAND_ALTITUDE (0.25)
 #define CONTROLLER_STEP_COMMAND_YAW (0.1)
 //Loop rate
@@ -124,7 +126,6 @@ void speedReferenceCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
 void publishSpeedReference();
 bool setControlMode(int new_control_mode);
 void clearSpeedReferences();
-bool advanced;
 int current_mode;
 //Topics
 std::string drone_id_namespace;
