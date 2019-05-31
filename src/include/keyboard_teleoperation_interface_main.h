@@ -145,8 +145,6 @@ tf2::Quaternion q_rot;
 void selfLocalizationPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
 void controlModeCallback(const aerostack_msgs::QuadrotorPidControllerMode::ConstPtr& msg);
 void speedReferenceCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
-void commandPitchRollCallback(const droneMsgsROS::dronePitchRollCmd::ConstPtr& msg);
-void commandPitchRollCallbackStop(const droneMsgsROS::dronePitchRollCmd::ConstPtr& msg);
 void attitudeCallback(const std_msgs::Int8::ConstPtr& msg);
 void groundSpeedCallback(const droneMsgsROS::vector2Stamped::ConstPtr& msg){ground_speed_msg=*msg;}
 void publishSpeedReference();
@@ -163,10 +161,5 @@ std::string assumed_control_mode_topic_name;
 std::string set_control_mode_service_name;
 std::string command_pitch_roll_topic_name;
 std::string ground_speed_topic_name;
-//Attitude control
-bool up;
-bool right;
-bool left;
-bool down;
 
 #endif

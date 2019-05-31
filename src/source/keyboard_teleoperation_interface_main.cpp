@@ -121,17 +121,7 @@ int main(int argc, char** argv){
   control_mode = n.subscribe("/" + drone_id_namespace + "/" + assumed_control_mode_topic_name, 1, controlModeCallback);
   speed_reference_sub = n.subscribe("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, speedReferenceCallback);
   attitude_sub = n.subscribe("/"+drone_id_namespace+"/keyboard_teleoperation_interface/attitude_control", 1, attitudeCallback);
-  //Deprecated subscribers and publishers
-  //command_pitch_roll_publ = n.advertise<droneMsgsROS::dronePitchRollCmd>("/" + drone_id_namespace + "/"+ command_pitch_roll_topic_name, 1, true);
-  //command_pitch_roll_stop_sub = n.subscribe("/"+drone_id_namespace+"/"+command_pitch_roll_topic_name, 1, commandPitchRollCallbackStop);
-  //command_pitch_roll_sub = n.subscribe("/"+drone_id_namespace+"/"+command_pitch_roll_topic_name+"/temp", 1, commandPitchRollCallback);
   ground_speed_sub = n.subscribe("/"+drone_id_namespace+"/"+ground_speed_topic_name, 1, groundSpeedCallback);
-
-  //Attitude control
-  up = false;
-  right = false;
-  left = false;
-  down = false;
 
   //Wait 3sec for initialization
   sleep(3);
@@ -311,7 +301,6 @@ int main(int argc, char** argv){
           std_msgs::Int8 msg_int;
           msg_int.data = RIGHT;
           attitude_publ.publish(msg_int);
-          right = true;
         }   
         printw("\u2192            ");clrtoeol();
         move(17, 0); 
@@ -345,7 +334,6 @@ int main(int argc, char** argv){
           std_msgs::Int8 msg_int;
           msg_int.data = LEFT;
           attitude_publ.publish(msg_int);          
-          left = true;
         }         
         printw("\u2190            ");clrtoeol();
         move(17, 0); 
@@ -379,7 +367,6 @@ int main(int argc, char** argv){
           std_msgs::Int8 msg_int;
           msg_int.data = DOWN;
           attitude_publ.publish(msg_int);
-          down = true;
         }             
         printw("\u2193     ");clrtoeol();
         move(17, 0); 
@@ -413,7 +400,6 @@ int main(int argc, char** argv){
           std_msgs::Int8 msg_int;
           msg_int.data = UP;
           attitude_publ.publish(msg_int);
-          up = true;
         }        
         printw("\u2191    ");clrtoeol();
         move(17, 0); 
