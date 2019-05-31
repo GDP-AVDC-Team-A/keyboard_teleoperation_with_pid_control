@@ -17,9 +17,6 @@ Speed reference for the controller.
 - **motion_reference/assumed_control_mode** ([aerostack_msgs/QuadrotorPidControllerMode](https://bitbucket.org/visionaerialrobotics/aerostack_msgs/src/master/msg/QuadrotorPidControllerMode.msg))  
 Current controller's control mode.
 
-- **command/pitch_roll/temp** ([droneMsgsROS/dronePitchRollCmd](https://bitbucket.org/joselusl/dronemsgsros/src/master/msg/dronePitchRollCmd.msg))  
-Pitch and roll commands from controllers.
-
 - **ground_speed** ([droneMsgsROS/Vector2Stamped](https://bitbucket.org/joselusl/dronemsgsros/src/fa03af3fb09b943ea728d28683ff7b6032f74d66/msg/vector2Stamped.msg?at=master))   
 Ground speed, i.e., horizontal speed of the vehicle relative to the ground.
 # Published topics
@@ -32,9 +29,6 @@ Speed reference for the controller.
 
 - **command/high_level** ([droneMsgsROS/droneCommand](https://bitbucket.org/joselusl/dronemsgsros/src/2b47c507de4b636562f313f07abf07991b2432c4/msg/droneCommand.msg?at=master&fileviewer=file-view-default))           
 It changes the status of a quadrotor vehicle. 
-
-- **command/pitch_roll** ([droneMsgsROS/dronePitchRollCmd](https://bitbucket.org/joselusl/dronemsgsros/src/master/msg/dronePitchRollCmd.msg))  
-Publishes pitch and roll commands for controllers.
 
 ---
 # Contributors
