@@ -114,16 +114,17 @@ int main(int argc, char** argv){
   command_publ = n.advertise<droneMsgsROS::droneCommand>("/" + drone_id_namespace + "/"+ command_high_level_topic_name, 1, true);
   speed_reference_publ = n.advertise<geometry_msgs::TwistStamped>("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, true);
   pose_reference_publ = n.advertise<geometry_msgs::PoseStamped>("/"+drone_id_namespace+"/"+pose_ref_topic_name, 1, true);
+  attitude_publ = n.advertise<std_msgs::Int8>("/"+drone_id_namespace+"/keyboard_teleoperation_interface/attitude_control", 1, true);
 
   //Subscribers
   self_pose_sub = n.subscribe("/"+drone_id_namespace+"/"+self_pose_topic_name, 1, selfLocalizationPoseCallback);
   control_mode = n.subscribe("/" + drone_id_namespace + "/" + assumed_control_mode_topic_name, 1, controlModeCallback);
   speed_reference_sub = n.subscribe("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, speedReferenceCallback);
-
+  attitude_sub = n.subscribe("/"+drone_id_namespace+"/keyboard_teleoperation_interface/attitude_control", 1, attitudeCallback);
   //Deprecated subscribers and publishers
-  command_pitch_roll_publ = n.advertise<droneMsgsROS::dronePitchRollCmd>("/" + drone_id_namespace + "/"+ command_pitch_roll_topic_name, 1, true);
-  command_pitch_roll_stop_sub = n.subscribe("/"+drone_id_namespace+"/"+command_pitch_roll_topic_name, 1, commandPitchRollCallbackStop);
-  command_pitch_roll_sub = n.subscribe("/"+drone_id_namespace+"/"+command_pitch_roll_topic_name+"/temp", 1, commandPitchRollCallback);
+  //command_pitch_roll_publ = n.advertise<droneMsgsROS::dronePitchRollCmd>("/" + drone_id_namespace + "/"+ command_pitch_roll_topic_name, 1, true);
+  //command_pitch_roll_stop_sub = n.subscribe("/"+drone_id_namespace+"/"+command_pitch_roll_topic_name, 1, commandPitchRollCallbackStop);
+  //command_pitch_roll_sub = n.subscribe("/"+drone_id_namespace+"/"+command_pitch_roll_topic_name+"/temp", 1, commandPitchRollCallback);
   ground_speed_sub = n.subscribe("/"+drone_id_namespace+"/"+ground_speed_topic_name, 1, groundSpeedCallback);
 
   //Attitude control
@@ -220,9 +221,6 @@ int main(int argc, char** argv){
         if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
             clearSpeedReferences();
             publishSpeedReference();
-            command_pitch_roll_msg.rollCmd = 0;
-            command_pitch_roll_msg.pitchCmd = 0;
-            command_pitch_roll_publ.publish(command_pitch_roll_msg);
             while(abs(ground_speed_msg.vector.x) >= 0.01 || abs(ground_speed_msg.vector.y) >= 0.01){
               //Waiting
             }
@@ -254,17 +252,9 @@ int main(int argc, char** argv){
       case 'z':  //(yaw) turn counter-clockwise
       {        
         move();       
-        tf2::Quaternion q_rot;
-        double r=0, p=0, yaw = 0;
-        if(motion_reference_pose_msg.pose.orientation.w == 0 && motion_reference_pose_msg.pose.orientation.x == 0 && motion_reference_pose_msg.pose.orientation.y == 0 && motion_reference_pose_msg.pose.orientation.z == 0){
-          yaw = 0;
-        }else{
-          yaw   = atan2(2.0 * (motion_reference_pose_msg.pose.orientation.z * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.y) ,
-         - 1.0 + 2.0 * (motion_reference_pose_msg.pose.orientation.w * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.x));
-        }
-        
-        yaw = yaw + CTE_YAW;
-        q_rot.setRPY(r, p, yaw);
+        poseEulerian = toEulerianAngle(motion_reference_pose_msg);
+        q_rot.setRPY(poseEulerian.roll, poseEulerian.pitch, poseEulerian.yaw + CTE_YAW);
+        current_commands.yaw = poseEulerian.yaw + CTE_YAW;
         motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
         motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
         motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -279,17 +269,9 @@ int main(int argc, char** argv){
       case 'x':  // (yaw) turn clockwise
       {      
         move();       
-        tf2::Quaternion q_rot;
-        double r=0, p=0, yaw = 0;
-        if(motion_reference_pose_msg.pose.orientation.w == 0 && motion_reference_pose_msg.pose.orientation.x == 0 && motion_reference_pose_msg.pose.orientation.y == 0 && motion_reference_pose_msg.pose.orientation.z == 0){
-          yaw = 0;
-        }else{
-          yaw   = atan2(2.0 * (motion_reference_pose_msg.pose.orientation.z * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.y) ,
-         - 1.0 + 2.0 * (motion_reference_pose_msg.pose.orientation.w * motion_reference_pose_msg.pose.orientation.w + motion_reference_pose_msg.pose.orientation.x * motion_reference_pose_msg.pose.orientation.x));
-        }
-        
-        yaw = yaw - CTE_YAW;
-        q_rot.setRPY(r, p, yaw);
+        poseEulerian = toEulerianAngle(motion_reference_pose_msg);
+        q_rot.setRPY(poseEulerian.roll, poseEulerian.pitch, poseEulerian.yaw - CTE_YAW);
+        current_commands.yaw = poseEulerian.yaw - CTE_YAW;
         motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
         motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
         motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -316,9 +298,19 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
         if (current_mode == ATTITUDE){
-          command_pitch_roll_msg.pitchCmd = command_pitch_roll_msg.pitchCmd;
-          command_pitch_roll_msg.rollCmd = CTE_COMMANDS;
-          command_pitch_roll_publ.publish(command_pitch_roll_msg);
+          current_commands.roll = CTE_COMMANDS;
+          current_commands.pitch = current_commands.pitch;
+          poseEulerian = toEulerianAngle(motion_reference_pose_msg);
+          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+          pose_reference_publ.publish(motion_reference_pose_msg);
+          std_msgs::Int8 msg_int;
+          msg_int.data = RIGHT;
+          attitude_publ.publish(msg_int);
           right = true;
         }   
         printw("\u2192            ");clrtoeol();
@@ -340,9 +332,19 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
         if (current_mode == ATTITUDE){
-          command_pitch_roll_msg.pitchCmd = command_pitch_roll_msg.pitchCmd;
-          command_pitch_roll_msg.rollCmd = -CTE_COMMANDS;
-          command_pitch_roll_publ.publish(command_pitch_roll_msg);
+          current_commands.roll = -CTE_COMMANDS;
+          current_commands.pitch = current_commands.pitch;
+          poseEulerian = toEulerianAngle(motion_reference_pose_msg);
+          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+          pose_reference_publ.publish(motion_reference_pose_msg);
+          std_msgs::Int8 msg_int;
+          msg_int.data = LEFT;
+          attitude_publ.publish(msg_int);          
           left = true;
         }         
         printw("\u2190            ");clrtoeol();
@@ -364,9 +366,19 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
         if (current_mode == ATTITUDE){
-          command_pitch_roll_msg.pitchCmd = CTE_COMMANDS;
-          command_pitch_roll_msg.rollCmd = command_pitch_roll_msg.rollCmd;
-          command_pitch_roll_publ.publish(command_pitch_roll_msg);
+          current_commands.roll = current_commands.roll;
+          current_commands.pitch = CTE_COMMANDS;
+          poseEulerian = toEulerianAngle(motion_reference_pose_msg);
+          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+          pose_reference_publ.publish(motion_reference_pose_msg);
+          std_msgs::Int8 msg_int;
+          msg_int.data = DOWN;
+          attitude_publ.publish(msg_int);
           down = true;
         }             
         printw("\u2193     ");clrtoeol();
@@ -388,9 +400,19 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
         if (current_mode == ATTITUDE){
-          command_pitch_roll_msg.pitchCmd = -CTE_COMMANDS;
-          command_pitch_roll_msg.rollCmd = command_pitch_roll_msg.rollCmd;
-          command_pitch_roll_publ.publish(command_pitch_roll_msg);
+          current_commands.roll = current_commands.roll;
+          current_commands.pitch = -CTE_COMMANDS;
+          poseEulerian = toEulerianAngle(motion_reference_pose_msg);
+          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+          pose_reference_publ.publish(motion_reference_pose_msg);
+          std_msgs::Int8 msg_int;
+          msg_int.data = UP;
+          attitude_publ.publish(msg_int);
           up = true;
         }        
         printw("\u2191    ");clrtoeol();
@@ -402,6 +424,7 @@ int main(int argc, char** argv){
       printw("r        ");clrtoeol();
       move(17, 0); 
       printw("                        Last command:     Reset orientation           ");clrtoeol(); 
+        current_commands.yaw = 0;
         motion_reference_pose_msg.pose.orientation.w = 0;
         motion_reference_pose_msg.pose.orientation.x = 0;
         motion_reference_pose_msg.pose.orientation.y = 0;
@@ -444,7 +467,7 @@ int main(int argc, char** argv){
       printw("3        ");clrtoeol();
       move(17, 0); 
       printw("                        Last command:     Attitude mode          ");clrtoeol();    
-      if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
+      if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::ATTITUDE)){
         hover();
         motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
         pose_reference_publ.publish(motion_reference_pose_msg);  
@@ -679,47 +702,79 @@ void selfLocalizationPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& ms
   self_localization_pose_msg = (*msg);
 }
 
-void commandPitchRollCallback(const droneMsgsROS::dronePitchRollCmd::ConstPtr& msg){
-  if(current_mode != ATTITUDE){
-    command_pitch_roll_publ.publish(*msg);
-  } 
+droneMsgsROS::dronePose toEulerianAngle(geometry_msgs::PoseStamped q){
+    droneMsgsROS::dronePose result;
+    result.x = q.pose.position.x;
+    result.y = q.pose.position.y;
+    result.z = q.pose.position.z;
+    if(q.pose.orientation.w == 0 && q.pose.orientation.x == 0 && q.pose.orientation.y == 0 && q.pose.orientation.z == 0){
+        result.roll   = 0; 
+        result.pitch = 0;
+        result.yaw = 0;
+    }else{
+        result.roll  = atan2(2.0 * (q.pose.orientation.z * q.pose.orientation.y + q.pose.orientation.w * q.pose.orientation.x) , 1.0 - 2.0 * (q.pose.orientation.x * q.pose.orientation.x + q.pose.orientation.y * q.pose.orientation.y));
+        result.pitch = asin(2.0 * (q.pose.orientation.y * q.pose.orientation.w - q.pose.orientation.z * q.pose.orientation.x));
+        result.yaw   = atan2(2.0 * (q.pose.orientation.z * q.pose.orientation.w + q.pose.orientation.x * q.pose.orientation.y) , - 1.0 + 2.0 * (q.pose.orientation.w * q.pose.orientation.w + q.pose.orientation.x * q.pose.orientation.x));    
+    }
+    return result;
 }
 
-//Pitch and Roll stop after CTE_COMMANDS_TIME seconds
-
-void commandPitchRollCallbackStop(const droneMsgsROS::dronePitchRollCmd::ConstPtr& msg){
-  if(current_mode == ATTITUDE){
-    if (right){
-      right = false;
-      boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
-      command_pitch_roll_msg_temp.pitchCmd = command_pitch_roll_msg.pitchCmd;
-      command_pitch_roll_msg_temp.rollCmd = 0;
-      command_pitch_roll_msg.rollCmd = 0;
-      command_pitch_roll_publ.publish(command_pitch_roll_msg_temp);
+void attitudeCallback(const std_msgs::Int8::ConstPtr& msg){
+  switch(msg->data){
+    case LEFT:
+    {
+          boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
+          current_commands.roll = 0;
+          current_commands.pitch = current_commands.pitch;
+          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+          pose_reference_publ.publish(motion_reference_pose_msg);   
     }
-    if (left){
-      left = false;
-      boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
-      command_pitch_roll_msg_temp.pitchCmd = command_pitch_roll_msg.pitchCmd;
-      command_pitch_roll_msg_temp.rollCmd = 0;
-       command_pitch_roll_msg.rollCmd = 0;
-      command_pitch_roll_publ.publish(command_pitch_roll_msg_temp);
-    } 
-    if (up){
-      up = false;
-      boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
-      command_pitch_roll_msg_temp.pitchCmd = 0;
-      command_pitch_roll_msg_temp.rollCmd = command_pitch_roll_msg.rollCmd;
-      command_pitch_roll_msg.pitchCmd = 0;
-      command_pitch_roll_publ.publish(command_pitch_roll_msg_temp);
-    }   
-    if (down){
-      down = false;
-      boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
-      command_pitch_roll_msg_temp.pitchCmd = 0;
-      command_pitch_roll_msg.pitchCmd = 0;
-      command_pitch_roll_msg_temp.rollCmd = command_pitch_roll_msg.rollCmd;
-      command_pitch_roll_publ.publish(command_pitch_roll_msg_temp);
-    }             
-  } 
+    break;
+    case RIGHT:
+    {
+          boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
+          current_commands.roll = 0;
+          current_commands.pitch = current_commands.pitch;
+          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+          pose_reference_publ.publish(motion_reference_pose_msg);   
+    }
+    break;
+    case DOWN:
+    {
+          boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
+          current_commands.roll = current_commands.roll;
+          current_commands.pitch = 0;
+          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+          pose_reference_publ.publish(motion_reference_pose_msg);   
+    }
+    break;
+    case UP:
+    {     boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
+          current_commands.roll = current_commands.roll;
+          current_commands.pitch = 0;
+          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+          motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+          motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+          motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();
+          motion_reference_pose_msg.pose.position = motion_reference_pose_msg.pose.position;
+          pose_reference_publ.publish(motion_reference_pose_msg);    
+    }
+    break;    
+  }
 }
