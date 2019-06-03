@@ -88,7 +88,6 @@ int main(int argc, char** argv){
         ground_speed_topic_name="ground_speed";
     }
 
-
   // ncurses initialization
   setlocale(LC_ALL, "");
   std::setlocale(LC_NUMERIC, "C");
@@ -122,7 +121,6 @@ int main(int argc, char** argv){
   speed_reference_sub = n.subscribe("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, speedReferenceCallback);
   attitude_sub = n.subscribe("/"+drone_id_namespace+"/keyboard_teleoperation_interface/attitude_control", 1, attitudeCallback);
   ground_speed_sub = n.subscribe("/"+drone_id_namespace+"/"+ground_speed_topic_name, 1, groundSpeedCallback);
-
   //Wait 3sec for initialization
   sleep(3);
 
@@ -204,23 +202,32 @@ int main(int argc, char** argv){
         printw("                        Last command:     Emergency stop            ");clrtoeol();
         break;
       case 'h':  // Hover   
+      {
         hover();
         printw("h      ");clrtoeol();
         move(17, 0); printw("                        Last command:     Keep hovering             ");clrtoeol();refresh();
 
-        if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
-            clearSpeedReferences();
-            publishSpeedReference();
-            while(abs(ground_speed_msg.vector.x) >= 0.01 || abs(ground_speed_msg.vector.y) >= 0.01){
-              //Waiting
-            }
-            motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
-            if (current_mode == POSE){
-              setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE);
-            }
-             pose_reference_publ.publish(motion_reference_pose_msg);           
+          if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::SPEED)){
+              clearSpeedReferences();
+              publishSpeedReference();
+              boost::this_thread::sleep(boost::posix_time::milliseconds(2000)); //2 seconds
+              while(abs(ground_speed_msg.vector.x) >= 0.01 || abs(ground_speed_msg.vector.y) >= 0.01){
+                //Waiting
+              }   
+              if (current_mode == POSE){
+                setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE);
+              }      
+              if (current_mode == ATTITUDE){
+                setControlMode(aerostack_msgs::QuadrotorPidControllerMode::ATTITUDE);
+              }      
+              if (current_mode == GROUND_SPEED){
+                setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED);
+              }   
+              motion_reference_pose_msg.pose = self_localization_pose_msg.pose;                                             
+              pose_reference_publ.publish(motion_reference_pose_msg);        
         }
         break;
+      }
       case 'q':  // Move upwards
         move();
         motion_reference_pose_msg.pose.position.z = motion_reference_pose_msg.pose.position.z + CTE_ALTITUDE;
@@ -427,6 +434,8 @@ int main(int argc, char** argv){
 
       if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
           hover();
+          clearSpeedReferences();
+          publishSpeedReference();        
           motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
           pose_reference_publ.publish(motion_reference_pose_msg);         
           current_mode = GROUND_SPEED;
@@ -441,6 +450,8 @@ int main(int argc, char** argv){
       printw("                        Last command:     Pose mode         ");clrtoeol();        
       if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE)){
         hover();
+        clearSpeedReferences();
+        publishSpeedReference();
         motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
         pose_reference_publ.publish(motion_reference_pose_msg);             
         printoutPoseControls();   
@@ -455,7 +466,14 @@ int main(int argc, char** argv){
       printw("                        Last command:     Attitude mode          ");clrtoeol();    
       if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::ATTITUDE)){
         hover();
-        motion_reference_pose_msg.pose = self_localization_pose_msg.pose;
+        clearSpeedReferences();
+        publishSpeedReference();
+        motion_reference_pose_msg.pose.position = self_localization_pose_msg.pose.position;
+        q_rot.setRPY(0, 0, toEulerianAngle(self_localization_pose_msg).yaw);
+        motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
+        motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
+        motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
+        motion_reference_pose_msg.pose.orientation.z = q_rot.getZ();        
         pose_reference_publ.publish(motion_reference_pose_msg);  
         current_mode = ATTITUDE;
         printoutAttitudeControls();

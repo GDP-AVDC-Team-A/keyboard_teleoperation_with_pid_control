@@ -57,11 +57,6 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "std_srvs/Empty.h"
 #include "droneMsgsROS/dronePose.h"
-
-#include "droneMsgsROS/dronePitchRollCmd.h"
-#include "droneMsgsROS/dronePitchRollCmd.h"
-#include "droneMsgsROS/droneDYawCmd.h"
-#include "droneMsgsROS/droneDAltitudeCmd.h"
 #include "droneMsgsROS/vector2Stamped.h"
 #include <std_msgs/Int8.h>
 
@@ -79,7 +74,7 @@
 #define CTE_ALTITUDE (1.00)
 #define CTE_YAW (0.1)
 //Loop rate
-#define FREQ_INTERFACE 40.0
+#define FREQ_INTERFACE 50.0
 
 int miliseconds = CTE_COMMANDS_TIME * 1000;
 const int GROUND_SPEED = 1;
@@ -104,6 +99,7 @@ ros::Subscriber command_pitch_roll_sub;
 ros::Subscriber command_pitch_roll_stop_sub;
 ros::Subscriber ground_speed_sub;
 ros::Subscriber attitude_sub;
+ros::Subscriber altitude_sub;
 //Services
 ros::ServiceClient setControlModeClientSrv;
 ros::ServiceClient startQuadrotorControllerClientSrv;
@@ -119,8 +115,6 @@ geometry_msgs::TwistStamped speed_reference_msg;
 geometry_msgs::TwistStamped current_speed_ref;
 droneMsgsROS::vector2Stamped ground_speed_msg;
 
-droneMsgsROS::dronePitchRollCmd command_pitch_roll_msg;
-droneMsgsROS::dronePitchRollCmd command_pitch_roll_msg_temp;
 //Services variables
 std_srvs::Empty req;
 droneMsgsROS::InitiateBehaviors msg;
