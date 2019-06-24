@@ -128,8 +128,7 @@ int main(int argc, char** argv){
   current_mode = GROUND_SPEED;
 
   //Services
-  startQuadrotorControllerClientSrv=n.serviceClient<std_srvs::Empty>("/"+drone_id_namespace+"/quadrotor_pid_controller_process/start");
-  startQuadrotorControllerClientSrv.call(req);
+
   setControlModeClientSrv = n.serviceClient<aerostack_msgs::SetControlMode>("/" + drone_id_namespace + "/"+set_control_mode_service_name);
   behavior.name = "SELF_LOCALIZE_BY_ODOMETRY";
   msg2.behavior = behavior;
@@ -143,7 +142,6 @@ int main(int argc, char** argv){
   printw("--------------------------------------------------------------------------------");
   //Print controls
   printoutGroundSpeedControls();
-  setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED);
   //LOOP
   ros::Rate loop_rate(FREQ_INTERFACE);
 
@@ -183,14 +181,34 @@ int main(int argc, char** argv){
       case 't':  // Take off
         takeOff();
         printw("t       ");clrtoeol();
-        motion_reference_pose_msg.pose.position.z = 0.70;
-        pose_reference_publ.publish(motion_reference_pose_msg);
         move(17, 0); 
         printw("                        Last command:     Take off           ");clrtoeol();
+        sleep(3);
+        motion_reference_pose_msg.pose.position.z = self_localization_pose_msg.pose.position.z;
+        pose_reference_publ.publish(motion_reference_pose_msg);
+        startQuadrotorControllerClientSrv=n.serviceClient<std_srvs::Empty>("/"+drone_id_namespace+"/quadrotor_pid_controller_process/start");
+        startQuadrotorControllerClientSrv.call(req);
+        switch(current_mode){
+          case POSE:
+              setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE);
+              printoutPoseControls(); 
+          break;
+          case ATTITUDE:
+              setControlMode(aerostack_msgs::QuadrotorPidControllerMode::ATTITUDE);
+              printoutAttitudeControls();
+          break;
+          case GROUND_SPEED:
+              setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED);
+              printoutGroundSpeedControls();         
+          break;
+        }
+        move();
         break;
       case 'y':  // Land
         hover();
         land();
+        startQuadrotorControllerClientSrv=n.serviceClient<std_srvs::Empty>("/"+drone_id_namespace+"/quadrotor_pid_controller_process/stop");
+        startQuadrotorControllerClientSrv.call(req);
         printw("y        ");clrtoeol(); 
         move(17, 0); 
         printw("                        Last command:     Land             ");clrtoeol();            
