@@ -46,47 +46,14 @@ int main(int argc, char** argv){
   std::thread thr(&spinnerThread);
   printf("Starting Keyboard Teleoperation Interface...\n");
 
-  ros::param::get("~command_high_level_topic_name", command_high_level_topic_name);
-    if ( command_high_level_topic_name.length() == 0)
-    {
-        command_high_level_topic_name="command/high_level";
-    }
-   ros::param::get("~speed_ref_topic_name", speed_ref_topic_name);
-    if ( speed_ref_topic_name.length() == 0)
-    {
-        speed_ref_topic_name="motion_reference/speed";
-    }
-    ros::param::get("~pose_ref_topic_name", pose_ref_topic_name);
-    if ( pose_ref_topic_name.length() == 0)
-    {
-        pose_ref_topic_name="motion_reference/pose";
-    }
-   ros::param::get("~self_pose_topic_name", self_pose_topic_name);
-    if ( self_pose_topic_name.length() == 0)
-    {
-        self_pose_topic_name="self_localization/pose";
-    }
-   ros::param::get("~assumed_control_mode_topic_name", assumed_control_mode_topic_name);
-    if ( assumed_control_mode_topic_name.length() == 0)
-    {
-        assumed_control_mode_topic_name="motion_reference/assumed_control_mode";
-    }
-    ros::param::get("~set_control_mode_service_name", set_control_mode_service_name);
-    if ( set_control_mode_service_name.length() == 0)
-    {
-        set_control_mode_service_name="set_control_mode";
-    }
-
-   ros::param::get("~command_pitch_roll_topic_name", command_pitch_roll_topic_name);
-    if ( command_pitch_roll_topic_name.length() == 0)
-    {
-        command_pitch_roll_topic_name="command/pitch_roll";
-    }
-   ros::param::get("~ground_speed_topic_name", ground_speed_topic_name);
-    if ( ground_speed_topic_name.length() == 0)
-    {
-        ground_speed_topic_name="ground_speed";
-    }
+  ros::param::get("~flight_action_topic_name", flight_action_topic_name);
+  ros::param::get("~speed_ref_topic_name", speed_ref_topic_name);
+  ros::param::get("~pose_ref_topic_name", pose_ref_topic_name);
+  ros::param::get("~self_pose_topic_name", self_pose_topic_name);
+  ros::param::get("~command_pitch_roll_topic_name", command_pitch_roll_topic_name);
+  ros::param::get("~self_speed_topic_name", self_speed_topic_name);
+  ros::param::get("~set_control_mode_service_name", set_control_mode_service_name);
+  ros::param::get("~assumed_control_mode_topic_name", assumed_control_mode_topic_name);
 
   // ncurses initialization
   setlocale(LC_ALL, "");
@@ -110,7 +77,7 @@ int main(int argc, char** argv){
   char command = 0;
 
   //Publishers
-  command_publ = n.advertise<droneMsgsROS::droneCommand>("/" + drone_id_namespace + "/"+ command_high_level_topic_name, 1, true);
+  command_publ = n.advertise<aerostack_msgs::FlightActionCommand>("/" + drone_id_namespace + "/"+ flight_action_topic_name, 1, true);
   speed_reference_publ = n.advertise<geometry_msgs::TwistStamped>("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, true);
   pose_reference_publ = n.advertise<geometry_msgs::PoseStamped>("/"+drone_id_namespace+"/"+pose_ref_topic_name, 1, true);
   attitude_publ = n.advertise<std_msgs::Int8>("/"+drone_id_namespace+"/keyboard_teleoperation_interface/attitude_control", 1, true);
@@ -120,22 +87,15 @@ int main(int argc, char** argv){
   control_mode = n.subscribe("/" + drone_id_namespace + "/" + assumed_control_mode_topic_name, 1, controlModeCallback);
   speed_reference_sub = n.subscribe("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, speedReferenceCallback);
   attitude_sub = n.subscribe("/"+drone_id_namespace+"/keyboard_teleoperation_interface/attitude_control", 1, attitudeCallback);
-  ground_speed_sub = n.subscribe("/"+drone_id_namespace+"/"+ground_speed_topic_name, 1, groundSpeedCallback);
+  ground_speed_sub = n.subscribe("/"+drone_id_namespace+"/"+self_speed_topic_name, 1, selfSpeedCallback);
   //Wait 3sec for initialization
   sleep(3);
 
+  setControlModeClientSrv = n.serviceClient<aerostack_msgs::SetControlMode>("/" + drone_id_namespace + "/"+set_control_mode_service_name);
+  
   //Teleoperation control mode
   current_mode = GROUND_SPEED;
 
-  //Services
-
-  setControlModeClientSrv = n.serviceClient<aerostack_msgs::SetControlMode>("/" + drone_id_namespace + "/"+set_control_mode_service_name);
-  behavior.name = "SELF_LOCALIZE_BY_ODOMETRY";
-  msg2.behavior = behavior;
-  initiate_behaviors_srv=n.serviceClient<droneMsgsROS::InitiateBehaviors>("/"+drone_id_namespace+"/initiate_behaviors");
-  activate_behavior_srv=n.serviceClient<aerostack_msgs::RequestBehavior>("/"+drone_id_namespace+"/activate_behavior");
-  initiate_behaviors_srv.call(msg);
-  activate_behavior_srv.call(msg2,res);
   move(0,0);clrtoeol();
   printw("                      - KEYBOARD TELEOPERATION INTERFACE -");
   move(3,0);clrtoeol();
@@ -229,7 +189,7 @@ int main(int argc, char** argv){
               clearSpeedReferences();
               publishSpeedReference();
               boost::this_thread::sleep(boost::posix_time::milliseconds(2000)); //2 seconds
-              while(abs(ground_speed_msg.vector.x) >= 0.01 || abs(ground_speed_msg.vector.y) >= 0.01){
+              while(abs(self_speed_msg.twist.linear.x) >= 0.01 || abs(self_speed_msg.twist.linear.y) >= 0.01){
                 //Waiting
               }   
               if (current_mode == POSE){
@@ -267,9 +227,10 @@ int main(int argc, char** argv){
       case 'z':  //(yaw) turn counter-clockwise
       {        
         move();       
-        poseEulerian = toEulerianAngle(motion_reference_pose_msg);
-        q_rot.setRPY(poseEulerian.roll, poseEulerian.pitch, poseEulerian.yaw + CTE_YAW);
-        current_commands.yaw = poseEulerian.yaw + CTE_YAW;
+        double yaw,r,p;
+        toEulerianAngle(motion_reference_pose_msg, &r,&p,&yaw);
+        q_rot.setRPY(r, p, yaw + CTE_YAW);
+        current_commands_yaw = yaw + CTE_YAW;
         motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
         motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
         motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -284,9 +245,10 @@ int main(int argc, char** argv){
       case 'x':  // (yaw) turn clockwise
       {      
         move();       
-        poseEulerian = toEulerianAngle(motion_reference_pose_msg);
-        q_rot.setRPY(poseEulerian.roll, poseEulerian.pitch, poseEulerian.yaw - CTE_YAW);
-        current_commands.yaw = poseEulerian.yaw - CTE_YAW;
+        double yaw,r,p;
+        toEulerianAngle(motion_reference_pose_msg, &r,&p,&yaw);
+        q_rot.setRPY(r, p, yaw - CTE_YAW);
+        current_commands_yaw = yaw - CTE_YAW;
         motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
         motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
         motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -313,10 +275,9 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
         if (current_mode == ATTITUDE){
-          current_commands.roll = CTE_COMMANDS;
-          current_commands.pitch = current_commands.pitch;
-          poseEulerian = toEulerianAngle(motion_reference_pose_msg);
-          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          current_commands_roll = CTE_COMMANDS;
+          current_commands_pitch = current_commands_pitch;
+          q_rot.setRPY(current_commands_roll, current_commands_pitch, current_commands_yaw);
           motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
           motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
           motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -346,10 +307,9 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
         if (current_mode == ATTITUDE){
-          current_commands.roll = -CTE_COMMANDS;
-          current_commands.pitch = current_commands.pitch;
-          poseEulerian = toEulerianAngle(motion_reference_pose_msg);
-          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          current_commands_roll = -CTE_COMMANDS;
+          current_commands_pitch = current_commands_pitch;
+          q_rot.setRPY(current_commands_roll, current_commands_pitch, current_commands_yaw);
           motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
           motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
           motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -379,10 +339,9 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
         if (current_mode == ATTITUDE){
-          current_commands.roll = current_commands.roll;
-          current_commands.pitch = CTE_COMMANDS;
-          poseEulerian = toEulerianAngle(motion_reference_pose_msg);
-          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          current_commands_roll = current_commands_roll;
+          current_commands_pitch = CTE_COMMANDS;
+          q_rot.setRPY(current_commands_roll, current_commands_pitch, current_commands_yaw);
           motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
           motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
           motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -412,10 +371,9 @@ int main(int argc, char** argv){
           pose_reference_publ.publish(motion_reference_pose_msg);
         }
         if (current_mode == ATTITUDE){
-          current_commands.roll = current_commands.roll;
-          current_commands.pitch = -CTE_COMMANDS;
-          poseEulerian = toEulerianAngle(motion_reference_pose_msg);
-          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          current_commands_roll = current_commands_roll;
+          current_commands_pitch = -CTE_COMMANDS;
+          q_rot.setRPY(current_commands_roll, current_commands_pitch, current_commands_yaw);
           motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
           motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
           motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -435,7 +393,7 @@ int main(int argc, char** argv){
       printw("r        ");clrtoeol();
       move(17, 0); 
       printw("                        Last command:     Reset orientation           ");clrtoeol(); 
-        current_commands.yaw = 0;
+        current_commands_yaw = 0;
         motion_reference_pose_msg.pose.orientation.w = 0;
         motion_reference_pose_msg.pose.orientation.x = 0;
         motion_reference_pose_msg.pose.orientation.y = 0;
@@ -487,7 +445,9 @@ int main(int argc, char** argv){
         clearSpeedReferences();
         publishSpeedReference();
         motion_reference_pose_msg.pose.position = self_localization_pose_msg.pose.position;
-        q_rot.setRPY(0, 0, toEulerianAngle(self_localization_pose_msg).yaw);
+        double yaw,r,p;
+        toEulerianAngle(self_localization_pose_msg, &r,&p,&yaw);
+        q_rot.setRPY(0, 0, yaw);
         motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
         motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
         motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -647,7 +607,7 @@ void publishCmd(){
 
 //Take off
 void takeOff(){
-  command_order.command = droneMsgsROS::droneCommand::TAKE_OFF;
+  command_order.action = aerostack_msgs::FlightActionCommand::TAKE_OFF;
   publishCmd();
 }
 
@@ -655,7 +615,7 @@ void takeOff(){
 void hover(){
   clearSpeedReferences();
   publishSpeedReference();
-  command_order.command = droneMsgsROS::droneCommand::HOVER;
+  command_order.action = aerostack_msgs::FlightActionCommand::HOVER;
   publishCmd();
 }
 
@@ -663,7 +623,7 @@ void hover(){
 void land(){
   clearSpeedReferences();
   publishSpeedReference();
-  command_order.command = droneMsgsROS::droneCommand::LAND;
+  command_order.action = aerostack_msgs::FlightActionCommand::LAND;
   publishCmd();
 }
 
@@ -671,13 +631,13 @@ void land(){
 void emergencyStop(){
   clearSpeedReferences();
   publishSpeedReference();
-  command_order.command = droneMsgsROS::droneCommand::RESET;
+  command_order.action = aerostack_msgs::FlightActionCommand::HOVER;
   publishCmd();
 }
 
 //Move
 void move(){
-  command_order.command = droneMsgsROS::droneCommand::MOVE;
+  command_order.action = aerostack_msgs::FlightActionCommand::MOVE;
   publishCmd();
 }
 
@@ -724,21 +684,20 @@ void selfLocalizationPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& ms
   self_localization_pose_msg = (*msg);
 }
 
-droneMsgsROS::dronePose toEulerianAngle(geometry_msgs::PoseStamped q){
-    droneMsgsROS::dronePose result;
-    result.x = q.pose.position.x;
-    result.y = q.pose.position.y;
-    result.z = q.pose.position.z;
+void selfSpeedCallback(const geometry_msgs::TwistStamped::ConstPtr& msg){
+  self_speed_msg=*msg;
+}
+
+void toEulerianAngle(geometry_msgs::PoseStamped q, double *roll, double *pitch, double *yaw){
     if(q.pose.orientation.w == 0 && q.pose.orientation.x == 0 && q.pose.orientation.y == 0 && q.pose.orientation.z == 0){
-        result.roll   = 0; 
-        result.pitch = 0;
-        result.yaw = 0;
+        *roll   = 0; 
+        *pitch = 0;
+        *yaw = 0;
     }else{
-        result.roll  = atan2(2.0 * (q.pose.orientation.z * q.pose.orientation.y + q.pose.orientation.w * q.pose.orientation.x) , 1.0 - 2.0 * (q.pose.orientation.x * q.pose.orientation.x + q.pose.orientation.y * q.pose.orientation.y));
-        result.pitch = asin(2.0 * (q.pose.orientation.y * q.pose.orientation.w - q.pose.orientation.z * q.pose.orientation.x));
-        result.yaw   = atan2(2.0 * (q.pose.orientation.z * q.pose.orientation.w + q.pose.orientation.x * q.pose.orientation.y) , - 1.0 + 2.0 * (q.pose.orientation.w * q.pose.orientation.w + q.pose.orientation.x * q.pose.orientation.x));    
+        *roll  = atan2(2.0 * (q.pose.orientation.z * q.pose.orientation.y + q.pose.orientation.w * q.pose.orientation.x) , 1.0 - 2.0 * (q.pose.orientation.x * q.pose.orientation.x + q.pose.orientation.y * q.pose.orientation.y));
+        *pitch = asin(2.0 * (q.pose.orientation.y * q.pose.orientation.w - q.pose.orientation.z * q.pose.orientation.x));
+        *yaw   = atan2(2.0 * (q.pose.orientation.z * q.pose.orientation.w + q.pose.orientation.x * q.pose.orientation.y) , - 1.0 + 2.0 * (q.pose.orientation.w * q.pose.orientation.w + q.pose.orientation.x * q.pose.orientation.x));    
     }
-    return result;
 }
 
 void attitudeCallback(const std_msgs::Int8::ConstPtr& msg){
@@ -746,9 +705,9 @@ void attitudeCallback(const std_msgs::Int8::ConstPtr& msg){
     case LEFT:
     {
           boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
-          current_commands.roll = 0;
-          current_commands.pitch = current_commands.pitch;
-          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          current_commands_roll = 0;
+          current_commands_pitch = current_commands_pitch;
+          q_rot.setRPY(current_commands_roll, current_commands_pitch, current_commands_yaw);
           motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
           motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
           motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -760,9 +719,9 @@ void attitudeCallback(const std_msgs::Int8::ConstPtr& msg){
     case RIGHT:
     {
           boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
-          current_commands.roll = 0;
-          current_commands.pitch = current_commands.pitch;
-          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          current_commands_roll = 0;
+          current_commands_pitch = current_commands_pitch;
+          q_rot.setRPY(current_commands_roll, current_commands_pitch, current_commands_yaw);
           motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
           motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
           motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -774,9 +733,9 @@ void attitudeCallback(const std_msgs::Int8::ConstPtr& msg){
     case DOWN:
     {
           boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
-          current_commands.roll = current_commands.roll;
-          current_commands.pitch = 0;
-          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          current_commands_roll = current_commands_roll;
+          current_commands_pitch = 0;
+          q_rot.setRPY(current_commands_roll, current_commands_pitch, current_commands_yaw);
           motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
           motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
           motion_reference_pose_msg.pose.orientation.y = q_rot.getY();
@@ -787,9 +746,9 @@ void attitudeCallback(const std_msgs::Int8::ConstPtr& msg){
     break;
     case UP:
     {     boost::this_thread::sleep(boost::posix_time::milliseconds(miliseconds));
-          current_commands.roll = current_commands.roll;
-          current_commands.pitch = 0;
-          q_rot.setRPY(current_commands.roll, current_commands.pitch, current_commands.yaw);
+          current_commands_roll = current_commands_roll;
+          current_commands_pitch = 0;
+          q_rot.setRPY(current_commands_roll, current_commands_pitch, current_commands_yaw);
           motion_reference_pose_msg.pose.orientation.w = q_rot.getW();
           motion_reference_pose_msg.pose.orientation.x = q_rot.getX();
           motion_reference_pose_msg.pose.orientation.y = q_rot.getY();

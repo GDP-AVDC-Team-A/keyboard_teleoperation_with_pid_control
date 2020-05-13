@@ -44,8 +44,7 @@
 #include <curses.h>
 #include <thread>
 #include <locale.h>
-#include "droneMsgsROS/droneCommand.h"
-#include <droneMsgsROS/InitiateBehaviors.h>
+#include "aerostack_msgs/FlightActionCommand.h"
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include "mav_msgs/RollPitchYawrateThrust.h"
@@ -56,8 +55,6 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "std_srvs/Empty.h"
-#include "droneMsgsROS/dronePose.h"
-#include "droneMsgsROS/vector2Stamped.h"
 #include <std_msgs/Int8.h>
 
 //Inputs
@@ -108,16 +105,15 @@ ros::ServiceClient activate_behavior_srv;
 
 //MSG
 aerostack_msgs::QuadrotorPidControllerMode control_mode_msg;
-droneMsgsROS::droneCommand command_order;
+aerostack_msgs::FlightActionCommand command_order;
 geometry_msgs::PoseStamped self_localization_pose_msg; 
 geometry_msgs::PoseStamped motion_reference_pose_msg; 
 geometry_msgs::TwistStamped speed_reference_msg;
 geometry_msgs::TwistStamped current_speed_ref;
-droneMsgsROS::vector2Stamped ground_speed_msg;
+geometry_msgs::TwistStamped self_speed_msg;;
 
 //Services variables
 std_srvs::Empty req;
-droneMsgsROS::InitiateBehaviors msg;
 aerostack_msgs::RequestBehavior::Request msg2;
 aerostack_msgs::RequestBehavior::Response res;
 aerostack_msgs::BehaviorCommand behavior;
@@ -132,28 +128,27 @@ void hover();
 void land();
 void emergencyStop();
 void move();
-droneMsgsROS::dronePose toEulerianAngle(geometry_msgs::PoseStamped q);
-droneMsgsROS::dronePose poseEulerian;
-droneMsgsROS::dronePose current_commands;
+void toEulerianAngle(geometry_msgs::PoseStamped q, double *roll, double *pitch, double *yaw);
+double current_commands_roll,current_commands_pitch,current_commands_yaw;
 tf2::Quaternion q_rot;
 void selfLocalizationPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
 void controlModeCallback(const aerostack_msgs::QuadrotorPidControllerMode::ConstPtr& msg);
 void speedReferenceCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
 void attitudeCallback(const std_msgs::Int8::ConstPtr& msg);
-void groundSpeedCallback(const droneMsgsROS::vector2Stamped::ConstPtr& msg){ground_speed_msg=*msg;}
+void selfSpeedCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
 void publishSpeedReference();
 bool setControlMode(int new_control_mode);
 void clearSpeedReferences();
 int current_mode;
 //Topics
 std::string drone_id_namespace;
-std::string command_high_level_topic_name;
+std::string flight_action_topic_name;
 std::string speed_ref_topic_name;
 std::string pose_ref_topic_name;
 std::string self_pose_topic_name;
 std::string assumed_control_mode_topic_name;
 std::string set_control_mode_service_name;
 std::string command_pitch_roll_topic_name;
-std::string ground_speed_topic_name;
+std::string self_speed_topic_name;
 
 #endif

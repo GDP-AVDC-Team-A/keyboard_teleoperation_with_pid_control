@@ -27,10 +27,10 @@ set(KEYBOARD_TELEOPERATION_INTERFACE_SOURCE_FILES
 
 set(CMAKE_AUTOMOC ON)
 
-find_package(catkin REQUIRED COMPONENTS roscpp std_msgs sensor_msgs  lib_cvgutils droneModuleROS geometry_msgs  image_transport cv_bridge droneMsgsROS )
+find_package(catkin REQUIRED COMPONENTS roscpp std_msgs sensor_msgs lib_cvgutils geometry_msgs image_transport cv_bridge aerostack_msgs)
 catkin_package(
         DEPENDS OpenCV
-        CATKIN_DEPENDS roscpp std_msgs sensor_msgs geometry_msgs lib_cvgutils droneModuleROS image_transport cv_bridge droneMsgsROS 
+        CATKIN_DEPENDS roscpp std_msgs sensor_msgs geometry_msgs lib_cvgutils image_transport cv_bridge aerostack_msgs
   )
 include_directories(${KEYBOARD_TELEOPERATION_INTERFACE_INCLUDE_DIR})
 include_directories(${KEYBOARD_TELEOPERATION_INTERFACE_CONTROLLER_INCLUDE_DIR})
