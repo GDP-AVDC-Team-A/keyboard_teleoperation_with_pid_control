@@ -49,7 +49,7 @@
 #include <geometry_msgs/TwistStamped.h>
 #include "mav_msgs/RollPitchYawrateThrust.h"
 #include "aerostack_msgs/SetControlMode.h"
-#include "aerostack_msgs/QuadrotorPidControllerMode.h"
+#include "aerostack_msgs/MotionControlMode.h"
 #include <aerostack_msgs/RequestBehavior.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
@@ -104,7 +104,7 @@ ros::ServiceClient initiate_behaviors_srv;
 ros::ServiceClient activate_behavior_srv;
 
 //MSG
-aerostack_msgs::QuadrotorPidControllerMode control_mode_msg;
+aerostack_msgs::MotionControlMode control_mode_msg;
 aerostack_msgs::FlightActionCommand command_order;
 geometry_msgs::PoseStamped self_localization_pose_msg; 
 geometry_msgs::PoseStamped motion_reference_pose_msg; 
@@ -132,7 +132,7 @@ void toEulerianAngle(geometry_msgs::PoseStamped q, double *roll, double *pitch, 
 double current_commands_roll,current_commands_pitch,current_commands_yaw;
 tf2::Quaternion q_rot;
 void selfLocalizationPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
-void controlModeCallback(const aerostack_msgs::QuadrotorPidControllerMode::ConstPtr& msg);
+void controlModeCallback(const aerostack_msgs::MotionControlMode::ConstPtr& msg);
 void speedReferenceCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
 void attitudeCallback(const std_msgs::Int8::ConstPtr& msg);
 void selfSpeedCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);

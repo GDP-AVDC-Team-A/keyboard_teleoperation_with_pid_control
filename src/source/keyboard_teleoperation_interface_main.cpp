@@ -150,15 +150,15 @@ int main(int argc, char** argv){
         startQuadrotorControllerClientSrv.call(req);
         switch(current_mode){
           case POSE:
-              setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE);
+              setControlMode(aerostack_msgs::MotionControlMode::POSE);
               printoutPoseControls(); 
           break;
           case ATTITUDE:
-              setControlMode(aerostack_msgs::QuadrotorPidControllerMode::ATTITUDE);
+              setControlMode(aerostack_msgs::MotionControlMode::ATTITUDE);
               printoutAttitudeControls();
           break;
           case GROUND_SPEED:
-              setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED);
+              setControlMode(aerostack_msgs::MotionControlMode::GROUND_SPEED);
               printoutGroundSpeedControls();         
           break;
         }
@@ -185,7 +185,7 @@ int main(int argc, char** argv){
         printw("h      ");clrtoeol();
         move(17, 0); printw("                        Last command:     Keep hovering             ");clrtoeol();refresh();
 
-          if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::SPEED)){
+          if (setControlMode(aerostack_msgs::MotionControlMode::SPEED)){
               clearSpeedReferences();
               publishSpeedReference();
               boost::this_thread::sleep(boost::posix_time::milliseconds(2000)); //2 seconds
@@ -193,13 +193,13 @@ int main(int argc, char** argv){
                 //Waiting
               }   
               if (current_mode == POSE){
-                setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE);
+                setControlMode(aerostack_msgs::MotionControlMode::POSE);
               }      
               if (current_mode == ATTITUDE){
-                setControlMode(aerostack_msgs::QuadrotorPidControllerMode::ATTITUDE);
+                setControlMode(aerostack_msgs::MotionControlMode::ATTITUDE);
               }      
               if (current_mode == GROUND_SPEED){
-                setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED);
+                setControlMode(aerostack_msgs::MotionControlMode::GROUND_SPEED);
               }   
               motion_reference_pose_msg.pose = self_localization_pose_msg.pose;                                             
               pose_reference_publ.publish(motion_reference_pose_msg);        
@@ -408,7 +408,7 @@ int main(int argc, char** argv){
       move(17, 0);   
       printw("                        Last command:     Ground speed mode               ");clrtoeol();    
 
-      if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::GROUND_SPEED)){
+      if (setControlMode(aerostack_msgs::MotionControlMode::GROUND_SPEED)){
           hover();
           clearSpeedReferences();
           publishSpeedReference();        
@@ -424,7 +424,7 @@ int main(int argc, char** argv){
       printw("2        ");clrtoeol();
       move(17, 0); 
       printw("                        Last command:     Pose mode         ");clrtoeol();        
-      if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::POSE)){
+      if (setControlMode(aerostack_msgs::MotionControlMode::POSE)){
         hover();
         clearSpeedReferences();
         publishSpeedReference();
@@ -440,7 +440,7 @@ int main(int argc, char** argv){
       printw("3        ");clrtoeol();
       move(17, 0); 
       printw("                        Last command:     Attitude mode          ");clrtoeol();    
-      if (setControlMode(aerostack_msgs::QuadrotorPidControllerMode::ATTITUDE)){
+      if (setControlMode(aerostack_msgs::MotionControlMode::ATTITUDE)){
         hover();
         clearSpeedReferences();
         publishSpeedReference();
@@ -662,7 +662,7 @@ void speedReferenceCallback(const geometry_msgs::TwistStamped::ConstPtr& msg){
 }
 
 //Control mode callback
-void controlModeCallback(const aerostack_msgs::QuadrotorPidControllerMode::ConstPtr& msg){
+void controlModeCallback(const aerostack_msgs::MotionControlMode::ConstPtr& msg){
   control_mode_msg = (*msg);
 }
 
@@ -670,7 +670,7 @@ void controlModeCallback(const aerostack_msgs::QuadrotorPidControllerMode::Const
 bool setControlMode(int new_control_mode){
   // Prepare service message
   aerostack_msgs::SetControlMode setControlModeSrv;
-  setControlModeSrv.request.controlMode.command = new_control_mode;
+  setControlModeSrv.request.controlMode.mode = new_control_mode;
   // use service
   if (setControlModeClientSrv.call(setControlModeSrv)){
     return setControlModeSrv.response.ack;

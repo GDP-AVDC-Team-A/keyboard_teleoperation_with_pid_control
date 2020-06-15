@@ -17,7 +17,7 @@ Current speed of the vehicle
 - **motion_reference/speed** ([geometry_msgs/TwistStamped](http://docs.ros.org/lunar/api/geometry_msgs/html/msg/TwistStamped.html))  
 Speed reference for the controller.
 
-- **motion_reference/assumed_control_mode** ([aerostack_msgs/QuadrotorPidControllerMode](https://bitbucket.org/visionaerialrobotics/aerostack_msgs/src/master/msg/QuadrotorPidControllerMode.msg))  
+- **motion_reference/assumed_control_mode** ([aerostack_msgs/MotionControlMode](https://bitbucket.org/visionaerialrobotics/aerostack_msgs/src/master/msg/MotionControlMode.msg))  
 Current controller's control mode.
 
 # Published topics
