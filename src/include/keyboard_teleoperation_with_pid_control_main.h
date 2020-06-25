@@ -1,7 +1,7 @@
 /*!*******************************************************************************************
- *  \file       keyboard_teleoperation_interface_main.h
+ *  \file       keyboard_teleoperation_with_pid_control_main.h
  *  \brief      Keyboard teleoperation inferface implementation file.
- *  \details    The keyboard teleoperation interface provides control vehicle by keyboard only in SPEED MODE
+ *  \details    The keyboard teleoperation provides control vehicle by keyboard only in SPEED MODE
  *              It allows multiple commands: Take off, land, move, hover, rotate...
  *  \authors    Alberto Rodelgo Perales
  *  \copyright  Copyright (c) 2019 Universidad Politecnica de Madrid
@@ -33,8 +33,8 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ********************************************************************************/ 
 
-#ifndef KEYBOARD_TELEOPERATION_INTERFACE_H
-#define KEYBOARD_TELEOPERATION_INTERFACE_H
+#ifndef KEYBOARD_TELEOPERATION_WITH_PID_CONTROL_H
+#define KEYBOARD_TELEOPERATION_WITH_PID_CONTROL_H
 
 #include <string>
 #include "ros/ros.h"

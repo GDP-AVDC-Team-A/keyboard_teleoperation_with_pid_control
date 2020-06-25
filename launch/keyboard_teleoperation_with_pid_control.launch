@@ -1,4 +1,4 @@
-<!-- Launches: Keyboard_teleoperation_interface -->
+<!-- Launches: Keyboard_teleoperation_with_pid_control -->
 <launch>
 	<arg name="drone_id_namespace"  default="drone1" />
 	<arg name="my_stack_directory" 	default="$(env AEROSTACK_STACK)" />
@@ -19,7 +19,7 @@
         <arg name="closed_opened" default="closed_opened"/>
 
 	<group ns="$(arg drone_id_namespace)">
-		<node name="keyboard_teleoperation_interface" pkg="keyboard_teleoperation_interface" type="keyboard_teleoperation_interface" output="screen">
+		<node name="keyboard_teleoperation_with_pid_control" pkg="keyboard_teleoperation_with_pid_control" type="keyboard_teleoperation_with_pid_control" output="screen">
 			<param name="drone_id_namespace" value="$(arg drone_id_namespace)" type="string"/>
 			<param name="stackPath" value="$(arg my_stack_directory)" type="string"/>
 			<param name="flight_action_topic_name" value="$(arg flight_action_topic_name)" type="string"/>

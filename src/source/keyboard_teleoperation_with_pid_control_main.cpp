@@ -1,7 +1,7 @@
 /*!*******************************************************************************************
- *  \file       keyboard_teleoperation_interface_main.cpp
+ *  \file       keyboard_teleoperation_with_pid_control_main.cpp
  *  \brief      Keyboard teleoperation inferface implementation file.
- *  \details    The keyboard teleoperation interface provides control vehicle by keyboard
+ *  \details    The keyboard teleoperation provides control vehicle by keyboard
  *              It allows multiple commands: Take off, land, move, hover, rotate...
  *  \authors    Alberto Rodelgo Perales
  *  \copyright  Copyright (c) 2019 Universidad Politecnica de Madrid
@@ -33,18 +33,17 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ********************************************************************************/ 
 
-#include "../include/keyboard_teleoperation_interface_main.h"
+#include "../include/keyboard_teleoperation_with_pid_control_main.h"
 
 void spinnerThread(){
   ros::spin();
 }
 
 int main(int argc, char** argv){
-  ros::init(argc, argv, "KEYBOARD TELEOPERATION INTERFACE");
+  ros::init(argc, argv, "KEYBOARD TELEOPERATION WITH PID CONTROL");
   ros::NodeHandle n("~");
   n.param<std::string>("drone_id_namespace", drone_id_namespace, "drone1");
   std::thread thr(&spinnerThread);
-  printf("Starting Keyboard Teleoperation Interface...\n");
 
   ros::param::get("~flight_action_topic_name", flight_action_topic_name);
   ros::param::get("~speed_ref_topic_name", speed_ref_topic_name);
@@ -80,13 +79,13 @@ int main(int argc, char** argv){
   command_publ = n.advertise<aerostack_msgs::FlightActionCommand>("/" + drone_id_namespace + "/"+ flight_action_topic_name, 1, true);
   speed_reference_publ = n.advertise<geometry_msgs::TwistStamped>("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, true);
   pose_reference_publ = n.advertise<geometry_msgs::PoseStamped>("/"+drone_id_namespace+"/"+pose_ref_topic_name, 1, true);
-  attitude_publ = n.advertise<std_msgs::Int8>("/"+drone_id_namespace+"/keyboard_teleoperation_interface/attitude_control", 1, true);
+  attitude_publ = n.advertise<std_msgs::Int8>("/"+drone_id_namespace+"/keyboard_teleoperation_with_pid_control/attitude_control", 1, true);
 
   //Subscribers
   self_pose_sub = n.subscribe("/"+drone_id_namespace+"/"+self_pose_topic_name, 1, selfLocalizationPoseCallback);
   control_mode = n.subscribe("/" + drone_id_namespace + "/" + assumed_control_mode_topic_name, 1, controlModeCallback);
   speed_reference_sub = n.subscribe("/"+drone_id_namespace+"/"+speed_ref_topic_name, 1, speedReferenceCallback);
-  attitude_sub = n.subscribe("/"+drone_id_namespace+"/keyboard_teleoperation_interface/attitude_control", 1, attitudeCallback);
+  attitude_sub = n.subscribe("/"+drone_id_namespace+"/keyboard_teleoperation_with_pid_control/attitude_control", 1, attitudeCallback);
   ground_speed_sub = n.subscribe("/"+drone_id_namespace+"/"+self_speed_topic_name, 1, selfSpeedCallback);
   //Wait 3sec for initialization
   sleep(3);
@@ -97,7 +96,7 @@ int main(int argc, char** argv){
   current_mode = GROUND_SPEED;
 
   move(0,0);clrtoeol();
-  printw("                      - KEYBOARD TELEOPERATION INTERFACE -");
+  printw("                - KEYBOARD TELEOPERATION WITH PID CONTROL -");
   move(3,0);clrtoeol();
   printw("--------------------------------------------------------------------------------");
   //Print controls
