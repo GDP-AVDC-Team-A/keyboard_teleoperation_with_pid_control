@@ -140,8 +140,8 @@ int main(int argc, char** argv){
         sleep(3);
         motion_reference_pose_msg.pose.position.z = self_localization_pose_msg.pose.position.z;
         pose_reference_publ.publish(motion_reference_pose_msg);
-        startQuadrotorControllerClientSrv=n.serviceClient<std_srvs::Empty>("/"+drone_id_namespace+"/quadrotor_pid_controller_process/start");
-        startQuadrotorControllerClientSrv.call(req);
+        //startQuadrotorControllerClientSrv=n.serviceClient<std_srvs::Empty>("/"+drone_id_namespace+"/quadrotor_pid_controller_process/start");
+        //startQuadrotorControllerClientSrv.call(req);
         switch(current_mode){
           case POSE:
               setControlMode(aerostack_msgs::MotionControlMode::POSE);
@@ -161,8 +161,8 @@ int main(int argc, char** argv){
       case 'y':  // Land
         hover();
         land();
-        startQuadrotorControllerClientSrv=n.serviceClient<std_srvs::Empty>("/"+drone_id_namespace+"/quadrotor_pid_controller_process/stop");
-        startQuadrotorControllerClientSrv.call(req);
+        //startQuadrotorControllerClientSrv=n.serviceClient<std_srvs::Empty>("/"+drone_id_namespace+"/quadrotor_pid_controller_process/stop");
+        //startQuadrotorControllerClientSrv.call(req);
         printw("y        ");clrtoeol(); 
         move(17, 0); 
         printw("                        Last command:     Land             ");clrtoeol();            
