@@ -45,7 +45,6 @@
 #include "mav_msgs/RollPitchYawrateThrust.h"
 #include "aerostack_msgs/SetControlMode.h"
 #include "aerostack_msgs/MotionControlMode.h"
-#include <aerostack_msgs/RequestBehavior.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -109,9 +108,6 @@ geometry_msgs::TwistStamped self_speed_msg;;
 
 //Services variables
 std_srvs::Empty req;
-aerostack_msgs::RequestBehavior::Request msg2;
-aerostack_msgs::RequestBehavior::Response res;
-aerostack_msgs::BehaviorCommand behavior;
 
 //Functions
 void printoutPoseControls();
